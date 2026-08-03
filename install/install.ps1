@@ -29,6 +29,33 @@ function Get-LatestVersion {
     return $release.tag_name.TrimStart('v')
 }
 
+function Get-Sha256([string]$Path) {
+    if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+        return (Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    # Fallback for stripped-down hosts: .NET crypto.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        if ($stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
+}
+
+function Expand-Zip([string]$ZipPath, [string]$Destination) {
+    if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
+        Expand-Archive -Path $ZipPath -DestinationPath $Destination -Force
+    }
+    else {
+        # Fallback for stripped-down hosts: .NET compression.
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
+    }
+}
+
 if ($Uninstall) {
     Write-Host 'Uninstalling SCDMS...'
     Get-Process -Name 'scdms' -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -68,7 +95,7 @@ try {
     Write-Host '[2/5] Verifying SHA256 checksum ...'
     $expected = ($null, (Get-Content $sumsPath | Where-Object { $_ -match [regex]::Escape($assetName) }) -split '\s+')[-2]
     if ([string]::IsNullOrWhiteSpace($expected)) { throw "No checksum found for $assetName in SHA256SUMS.txt" }
-    $actual = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actual = Get-Sha256 $zipPath
     if ($actual -ne $expected.ToLowerInvariant()) { throw "Checksum mismatch! Expected $expected, got $actual" }
     Write-Host '      Checksum OK.'
 
@@ -77,7 +104,7 @@ try {
 
     Write-Host "[4/5] Installing to $InstallDir ..."
     Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
-    Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+    Expand-Zip $zipPath $InstallDir
 
     Write-Host '[5/5] Creating shortcuts and PATH entry ...'
     # Launcher: starts the server and opens the browser.
