@@ -1,0 +1,14 @@
+* text=auto
+
+# Shell scripts must keep LF for bash on Linux/macOS
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Windows scripts
+*.ps1  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binary
+*.pfx  binary
+*.zip  binary
+*.tar.gz binary
