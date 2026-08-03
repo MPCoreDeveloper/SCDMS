@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  build:
+    name: Build & Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore
+      run: dotnet restore SCDMS.slnx --configfile NuGet.Config
+
+    - name: Fail on deprecated NuGet packages
+      shell: pwsh
+      run: |
+        $output = dotnet list SCDMS.slnx package --deprecated --configfile NuGet.Config
+        $outputText = $output | Out-String
+        Write-Host $outputText
+        if ($outputText -match "has the following deprecated packages") {
+          Write-Error "Deprecated NuGet packages detected."
+          exit 1
+        }
+
+    - name: Fail on vulnerable NuGet packages
+      shell: pwsh
+      run: |
+        $output = dotnet list SCDMS.slnx package --vulnerable --configfile NuGet.Config
+        $outputText = $output | Out-String
+        Write-Host $outputText
+        if ($outputText -match "has the following vulnerable packages") {
+          Write-Error "Vulnerable NuGet packages detected."
+          exit 1
+        }
+
+    - name: Build
+      run: dotnet build SCDMS.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+
+    - name: Smoke test (start app, expect HTTPS 200)
+      shell: pwsh
+      run: |
+        $proc = Start-Process dotnet -ArgumentList 'run --project src/SCDMS/SCDMS.csproj --no-build -c Release' -PassThru
+        try {
+          $ready = $false
+          for ($i = 0; $i -lt 60 -and -not $ready; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $tcp = New-Object System.Net.Sockets.TcpClient
+              if ($tcp.ConnectAsync('localhost', 5443).Wait(1000)) { $ready = $true }
+              $tcp.Close()
+            } catch { }
+          }
+          if (-not $ready) { throw 'SCDMS did not start listening on port 5443.' }
+
+          $handler = [System.Net.Http.HttpClientHandler]::new()
+          $handler.ServerCertificateCustomValidationCallback = [System.Net.Http.HttpClientHandler]::DangerousAcceptAnyServerCertificateValidator
+          $client = [System.Net.Http.HttpClient]::new($handler)
+          $response = $client.GetStringAsync('https://localhost:5443/').GetAwaiter().GetResult()
+          if ($response -notmatch 'SCDMS') { throw 'Homepage did not contain the SCDMS marker.' }
+          Write-Host 'Smoke test PASS: HTTPS 200 + SCDMS marker found.'
+        }
+        finally {
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        }

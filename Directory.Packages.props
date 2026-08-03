@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <!-- Central Package Management (CPM): all package versions are declared here. -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- SharpCoreDB packages consumed from NuGet.org. Bump when a newer stable is required. -->
+    <SharpCoreDBVersion>1.9.3</SharpCoreDBVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="SharpCoreDB" Version="$(SharpCoreDBVersion)" />
+    <PackageVersion Include="SharpCoreDB.Data.Provider" Version="$(SharpCoreDBVersion)" />
+    <PackageVersion Include="SharpCoreDB.Client" Version="$(SharpCoreDBVersion)" />
+    <PackageVersion Include="SafeWebCore" Version="1.6.0" />
+    <PackageVersion Include="SharpDispatch" Version="1.0.1" />
+  </ItemGroup>
+</Project>

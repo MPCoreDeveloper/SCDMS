@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64,     os: windows-latest, ext: zip }
+          - { rid: linux-x64,   os: ubuntu-latest,  ext: tar.gz }
+          - { rid: linux-arm64, os: ubuntu-latest,  ext: tar.gz }
+          - { rid: osx-x64,     os: macos-latest,   ext: tar.gz }
+          - { rid: osx-arm64,   os: macos-latest,   ext: tar.gz }
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Compute version from tag
+      shell: pwsh
+      id: version
+      run: |
+        $v = "${{ github.ref_name }}".TrimStart('v')
+        Write-Host "Version: $v"
+        "value=$v" >> $env:GITHUB_OUTPUT
+
+    - name: Publish self-contained single-file
+      run: >
+        dotnet publish src/SCDMS/SCDMS.csproj
+        --configuration Release
+        --runtime ${{ matrix.rid }}
+        --self-contained true
+        -p:PublishSingleFile=true
+        -p:EnableCompressionInSingleFile=true
+        -p:Version=${{ steps.version.outputs.value }}
+        -p:InformationalVersion=${{ steps.version.outputs.value }}
+        --output ./publish/${{ matrix.rid }}
+
+    - name: Smoke test published binary
+      shell: pwsh
+      run: |
+        $exe = if ("${{ matrix.rid }}" -like 'win-*') { "./publish/${{ matrix.rid }}/scdms.exe" } else { "./publish/${{ matrix.rid }}/scdms" }
+        & $exe --version
+        if ($LASTEXITCODE -ne 0) { throw 'scdms --version failed.' }
+
+    - name: Package artifact
+      shell: pwsh
+      run: |
+        $v = "${{ steps.version.outputs.value }}"
+        $asset = "scdms_${v}_${{ matrix.rid }}"
+        New-Item -ItemType Directory -Force ./dist | Out-Null
+        if ("${{ matrix.ext }}" -eq 'zip') {
+          Compress-Archive -Path "./publish/${{ matrix.rid }}/*" -DestinationPath "./dist/$asset.zip"
+        } else {
+          tar -czf "./dist/$asset.tar.gz" -C "./publish/${{ matrix.rid }}" .
+        }
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: scdms-${{ matrix.rid }}
+        path: ./dist/*
+        if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./dist
+        merge-multiple: true
+
+    - name: Generate SHA256 checksums
+      run: |
+        cd dist
+        sha256sum * > SHA256SUMS.txt
+        cat SHA256SUMS.txt
+
+    - name: Create release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "${{ github.ref_name }}" \
+          --title "SCDMS ${{ github.ref_name }}" \
+          --generate-notes \
+          ./dist/*

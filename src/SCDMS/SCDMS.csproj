@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>scdms</AssemblyName>
+    <RootNamespace>Scdms</RootNamespace>
+    <Description>SCDMS — Sharp Core Database Management System. Local-first database studio for SharpCoreDB.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SafeWebCore" />
+    <PackageReference Include="SharpDispatch" />
+    <PackageReference Include="SharpCoreDB" />
+    <PackageReference Include="SharpCoreDB.Data.Provider" />
+    <PackageReference Include="SharpCoreDB.Client" />
+  </ItemGroup>
+
+</Project>

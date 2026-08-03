@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <!-- SCDMS product version. Release workflow overrides these from the git tag. -->
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <Company>MPCoreDeveloper</Company>
+    <Product>SCDMS — Sharp Core Database Management System</Product>
+    <Copyright>Copyright (c) 2026 MPCoreDeveloper</Copyright>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>

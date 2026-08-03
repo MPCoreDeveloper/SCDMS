@@ -1,0 +1,25 @@
+## .NET build output
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+
+## Rider / VS
+.idea/
+.vs/
+.vscode/
+
+## Test results
+TestResults/
+*.trx
+coverage*.xml
+
+## Runtime artifacts
+*.log
+server-launch.log
+
+## OS
+.DS_Store
+Thumbs.db
