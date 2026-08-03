@@ -58,6 +58,9 @@ jobs:
         --output ./publish/${{ matrix.rid }}
 
     - name: Smoke test published binary
+      # linux-arm64 publishes on an x64 runner: the binary cannot execute there
+      # ("Exec format error"), so execution is skipped for that RID only.
+      if: matrix.rid != 'linux-arm64'
       shell: pwsh
       run: |
         $exe = if ("${{ matrix.rid }}" -like 'win-*') { "./publish/${{ matrix.rid }}/scdms.exe" } else { "./publish/${{ matrix.rid }}/scdms" }
