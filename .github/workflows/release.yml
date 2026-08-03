@@ -91,6 +91,9 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout (required by gh release create --generate-notes)
+      uses: actions/checkout@v7
+
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
