@@ -9,7 +9,7 @@
     <PackageVersion Include="SharpCoreDB" Version="$(SharpCoreDBVersion)" />
     <PackageVersion Include="SharpCoreDB.Data.Provider" Version="$(SharpCoreDBVersion)" />
     <PackageVersion Include="SharpCoreDB.Client" Version="$(SharpCoreDBVersion)" />
-    <PackageVersion Include="SafeWebCore" Version="1.6.0" />
+    <PackageVersion Include="SafeWebCore" Version="1.7.0" />
     <PackageVersion Include="SharpDispatch" Version="1.0.1" />
   </ItemGroup>
 </Project>
