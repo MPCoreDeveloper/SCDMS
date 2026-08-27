@@ -58,10 +58,10 @@
 
     @* Update banner: shown by JS when /api/update-check reports a newer release *@
     <div id="scdms-update-banner" class="scdms-update-banner" role="status" hidden>
-        <span>⬆️ SCDMS <span id="scdms-update-version"></span> is beschikbaar —</span>
-        <a id="scdms-update-link" href="#" target="_blank" rel="noopener noreferrer">download de nieuwe versie</a>
-        <span>of voer <code>scdms --update</code> uit.</span>
-        <button type="button" id="scdms-update-dismiss" class="scdms-update-banner__dismiss" aria-label="Melding sluiten">×</button>
+        <span>⬆️ SCDMS <span id="scdms-update-version"></span> is available —</span>
+        <a id="scdms-update-link" href="#" target="_blank" rel="noopener noreferrer">download the new version</a>
+        <span>or run <code>scdms --update</code>.</span>
+        <button type="button" id="scdms-update-dismiss" class="scdms-update-banner__dismiss" aria-label="Dismiss notification">×</button>
     </div>
 
     @* ═══════════════════════════════════════════
@@ -103,13 +103,6 @@
         </div>
         <div class="scdb-menu__group" data-action="edit.redo" role="menuitem" tabindex="-1">
             <span class="scdb-menu__shortcut">Ctrl+Y</span>Redo
-        </div>
-        <div class="scdb-menu__separator"></div>
-        <div class="scdb-menu__group" data-action="edit.find" role="menuitem" tabindex="-1">
-            <span class="scdb-menu__shortcut">Ctrl+F</span>Find
-        </div>
-        <div class="scdb-menu__group" data-action="edit.replace" role="menuitem" tabindex="-1">
-            <span class="scdb-menu__shortcut">Ctrl+H</span>Replace
         </div>
         <div class="scdb-menu__separator"></div>
         <div class="scdb-menu__group" data-action="edit.select-all" role="menuitem" tabindex="-1">
@@ -213,6 +206,21 @@
     <main class="scdb-main" role="main" id="scdb-main-content">
         @RenderBody()
     </main>
+
+    <dialog id="scdb-about-dialog" class="scdb-snippet-dialog">
+        <div class="scdb-snippet-dialog__header">
+            <h3 class="scdb-no-margin">About SCDMS</h3>
+            <button type="button" class="scdb-snippet-dialog__close" data-action="close-about" aria-label="Close">✕</button>
+        </div>
+        <div class="scdb-snippet-dialog__body">
+            <p><strong>SCDMS</strong> — Sharp Core Database Management System.</p>
+            <p>Local-first database studio for SharpCoreDB. Version <code>@ScdmsVersion.Display</code>.</p>
+            <p class="scdb-text-muted scdb-text-12">Served with SafeWebCore strict A+ security headers (CSP nonce + strict-dynamic).</p>
+        </div>
+        <div class="scdb-snippet-dialog__footer">
+            <button type="button" class="scdb-btn scdb-btn--primary" data-action="close-about">Close</button>
+        </div>
+    </dialog>
 
     @* ═══════════════════════════════════════════
        STATUS BAR  (SSMS-style sticky bottom chrome)

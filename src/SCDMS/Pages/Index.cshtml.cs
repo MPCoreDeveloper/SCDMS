@@ -99,7 +99,20 @@ public sealed class IndexModel(
 
     public QueryExecutionResult? QueryResult { get; private set; }
 
-    public string EndpointDisplay => $"https://{_options.BindAddress}:{_options.HttpsPort}";
+    public string EndpointDisplay
+    {
+        get
+        {
+            // 0.0.0.0 / :: / * are not usable in a browser address bar — show localhost instead.
+            var displayAddress = _options.BindAddress.Trim() switch
+            {
+                "0.0.0.0" or "::" or "*" => "localhost",
+                _ => _options.BindAddress
+            };
+
+            return $"https://{displayAddress}:{_options.HttpsPort}";
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the built-in databases still use the well-known default
@@ -918,6 +931,11 @@ public sealed class IndexModel(
             ViewData["RowCount"] = QueryResult.Rows.Count;
         }
 
+        if (QueryResult is not null)
+        {
+            ViewData["ElapsedMs"] = QueryResult.ExecutionTimeMs;
+        }
+
         if (!string.IsNullOrWhiteSpace(StatusMessage))
         {
             ViewData["StatusMessage"] = StatusMessage;
@@ -1033,7 +1051,7 @@ public sealed class IndexModel(
             ViewerConnectionMode.Server => $"server:{serverHost}:{serverPort}/{serverDatabase}".ToLowerInvariant(),
             ViewerConnectionMode.Local => string.IsNullOrWhiteSpace(localDatabasePath)
                 ? null
-                : $"local:{localDatabasePath}".ToLowerInvariant(),
+                : $"local:{localDatabasePath}",
             _ => null
         };
     }

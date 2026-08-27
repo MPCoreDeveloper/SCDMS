@@ -50,4 +50,16 @@ if ($ready) {
     Write-Warning 'SCDMS did not respond in time. Check console output above.'
 }
 
-Receive-Job $job -Wait
+# Stream the server output and block until it exits. Ctrl+C now stops the server
+# instead of leaving an orphaned job behind.
+try {
+    while ($job.State -eq 'Running') {
+        Receive-Job $job -Keep
+        Start-Sleep -Milliseconds 500
+    }
+    Receive-Job $job -Keep
+}
+finally {
+    Stop-Job $job -ErrorAction SilentlyContinue
+    Remove-Job $job -Force -ErrorAction SilentlyContinue
+}

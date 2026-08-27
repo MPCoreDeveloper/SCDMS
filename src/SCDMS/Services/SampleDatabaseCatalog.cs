@@ -123,6 +123,11 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
     private static async Task EnsureDatabaseAsync(string path, string password, string[] statements, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Only remove the directory on failure when we created it ourselves. A directory that
+        // already existed (e.g. a user's own database at the same path, without a seed marker)
+        // must never be deleted — that would destroy user data.
+        var directoryExistedBeforeSeeding = Directory.Exists(path);
         Directory.CreateDirectory(path);
 
         var connectionString = new SharpCoreDBConnectionStringBuilder
@@ -154,16 +159,21 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
         }
         catch
         {
-            // Remove a partially-created database so the next launch can retry from a clean state.
-            try
+            // Remove a partially-created database so the next launch can retry from a clean
+            // state — but only when we created the directory in this call. Pre-existing
+            // directories are left untouched to avoid destroying user data.
+            if (!directoryExistedBeforeSeeding)
             {
-                if (Directory.Exists(path))
+                try
                 {
-                    Directory.Delete(path, recursive: true);
+                    if (Directory.Exists(path))
+                    {
+                        Directory.Delete(path, recursive: true);
+                    }
                 }
-            }
-            catch
-            {
+                catch
+                {
+                }
             }
 
             throw;

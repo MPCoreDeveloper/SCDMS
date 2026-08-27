@@ -431,7 +431,7 @@
                             <button type="button" class="scdb-history-item @(h.Succeeded ? "" : "scdb-history-item--error")"
                                  title="@h.SqlPreview"
                                  data-action="load-history"
-                                 data-sql="@Html.Raw(System.Text.Json.JsonSerializer.Serialize(h.SqlPreview))">
+                                 data-sql="@System.Text.Json.JsonSerializer.Serialize(h.SqlPreview)">
                                 <div class="scdb-history-item__sql scdb-mono scdb-truncate">@h.SqlPreview</div>
                                 <div class="scdb-history-item__meta scdb-muted">
                                     <span>@h.ExecutedAtUtc.ToLocalTime().ToString("HH:mm:ss")</span>
@@ -575,7 +575,6 @@
 
         <div class="scdb-results-body" id="pane-results"
              @(Model.HasQueryResult ? "" : "hidden")>
-            <div class="scdb-pagination-toolbar" id="scdb-pagination-toolbar"></div>
             @if (Model.QueryResult?.Rows is { Count: > 0 })
             {
                 <table class="scdb-grid" aria-label="Query results">
@@ -660,6 +659,19 @@
 <form method="post" asp-page-handler="ScriptTable" id="form-script-table" class="scdb-hidden">
     @Html.AntiForgeryToken()
     <input type="hidden" name="SelectedTable" value="" />
+</form>
+
+@* Hidden form used by File → Save Query / Ctrl+S (populated by menu-actions.js). *@
+<form method="post" asp-page-handler="SaveQuery" id="form-save-query" class="scdb-hidden">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Query.Sql" id="save-query-sql" value="" />
+    <input type="hidden" name="Query.ParametersJson" id="save-query-params" value="" />
+    <input type="hidden" name="SaveQueryName" id="save-query-name" value="" />
+</form>
+
+@* Hidden form used by File → Export Workspace. *@
+<form method="post" asp-page-handler="ExportWorkspace" id="form-export-workspace" class="scdb-hidden">
+    @Html.AntiForgeryToken()
 </form>
 
 <div id="scdb-busy-overlay" class="scdb-overlay scdb-busy-overlay scdb-hidden" aria-hidden="true" role="alert" aria-busy="true">
@@ -786,6 +798,29 @@
         <button type="button" class="scdb-btn scdb-btn--secondary" data-action="close-snippet-dialog">Cancel</button>
         <button type="button" class="scdb-btn scdb-btn--primary" data-action="save-snippet">Save Snippet</button>
     </div>
+</dialog>
+
+<dialog id="scdb-workspace-dialog" class="scdb-snippet-dialog"
+        data-open-on-load="@((Model.ImportWorkspaceJson.Length > 0).ToString().ToLowerInvariant())">
+    <form method="post" asp-page-handler="ImportWorkspace">
+        @Html.AntiForgeryToken()
+        <div class="scdb-snippet-dialog__header">
+            <h3 class="scdb-no-margin">Workspace JSON</h3>
+            <button type="button" class="scdb-snippet-dialog__close" data-action="close-workspace" aria-label="Close">✕</button>
+        </div>
+        <div class="scdb-snippet-dialog__body">
+            <div class="scdb-form-group">
+                <label class="scdb-label" for="scdb-workspace-json">Query workspace (saved queries + history)</label>
+                <textarea class="scdb-input scdb-mono" id="scdb-workspace-json" name="ImportWorkspaceJson" rows="10"
+                          placeholder='{"savedQueries":[],"history":[]}'>@Model.ImportWorkspaceJson</textarea>
+                <small class="scdb-text-muted scdb-text-12">Use File → Export Workspace to generate a payload, then paste it here and click Import.</small>
+            </div>
+        </div>
+        <div class="scdb-snippet-dialog__footer">
+            <button type="button" class="scdb-btn scdb-btn--secondary" data-action="close-workspace">Cancel</button>
+            <button type="submit" class="scdb-btn scdb-btn--primary">Import Workspace</button>
+        </div>
+    </form>
 </dialog>
 
 @section Scripts {

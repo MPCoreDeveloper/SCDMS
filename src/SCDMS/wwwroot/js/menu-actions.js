@@ -6,7 +6,13 @@
     // Map menu action to existing data-action or DOM selector click
     const actionMap = {
         // File
-        'file.new-query': () => clickDataAction('add-new-query-tab'),
+        'file.new-query': () => {
+            if (typeof window.addNewQueryTab === 'function') {
+                window.addNewQueryTab('');
+                return;
+            }
+            clickDataAction('add-new-query-tab');
+        },
         'file.new-database': () => clickDataAction('open-create-db'),
         'file.new-contoso-sample': () => createSampleDatabase('contoso'),
         'file.new-adventureworks-sample': () => createSampleDatabase('adventureworks'),
@@ -15,16 +21,20 @@
             revealSidebarGroup('scdb-group-connect');
         },
         'file.disconnect': () => submitFormByHandler('Disconnect'),
-        'file.export-workspace': () => clickDataAction('export-workspace'),
-        'file.import-workspace': () => clickDataAction('import-workspace'),
+        'file.export-workspace': () => exportWorkspace(),
+        'file.import-workspace': () => importWorkspace(),
         'file.save-query': () => saveActiveQuery(),
 
         // Edit
-        'edit.undo': (ctx) => ctx.editor?.trigger?.(null, 'undo'),
-        'edit.redo': (ctx) => ctx.editor?.trigger?.(null, 'redo'),
-        'edit.find': (ctx) => ctx.editor?.trigger?.(null, 'actions.find'),
-        'edit.replace': (ctx) => ctx.editor?.trigger?.(null, 'editor.action.startFindReplaceAction'),
-        'edit.select-all': (ctx) => {
+        'edit.undo': () => {
+            const ed = document.getElementById('scdb-sql-editor');
+            if (ed) { ed.focus(); document.execCommand('undo'); }
+        },
+        'edit.redo': () => {
+            const ed = document.getElementById('scdb-sql-editor');
+            if (ed) { ed.focus(); document.execCommand('redo'); }
+        },
+        'edit.select-all': () => {
             const ed = document.getElementById('scdb-sql-editor');
             if (ed) { ed.focus(); ed.select(); }
         },
@@ -47,11 +57,11 @@
         // Tools
         'tools.create-table': () => showCreateTableDialog(),
         'tools.import-csv': () => showImportCsvDialog(),
-        'tools.settings': () => clickSelector('#open-settings-dialog'),
+        'tools.settings': () => showSettingsHint(),
 
         // Help
-        'help.sql-reference': () => openDocs('/docs/viewer/SQL_SYNTAX_REFERENCE.md'),
-        'help.user-manual': () => openDocs('/docs/USER_MANUAL.md'),
+        'help.sql-reference': () => openDocs('https://github.com/MPCoreDeveloper/SharpCoreDB'),
+        'help.user-manual': () => openDocs('https://github.com/MPCoreDeveloper/SCDMS/blob/main/docs/usage.md'),
         'help.about': () => showAbout()
     };
 
@@ -155,15 +165,14 @@
             return;
         }
 
-        // Dispatch an event that the page model can listen for to persist.
-        // The WebViewer server persists saved queries via POST handlers.
         const form = document.querySelector('#form-save-query, form[data-handler="SaveQuery"]');
         if (form) {
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = 'Query.Sql';
-            hidden.value = sql;
-            form.appendChild(hidden);
+            const sqlInput = form.querySelector('input[name="Query.Sql"]');
+            const paramsInput = form.querySelector('input[name="Query.ParametersJson"]');
+            if (sqlInput) { sqlInput.value = sql; }
+            if (paramsInput) {
+                paramsInput.value = document.getElementById('scdb-params-field')?.value ?? '';
+            }
             form.submit();
             return;
         }
@@ -172,6 +181,39 @@
         const status = document.getElementById('scdb-statusbar-msg');
         if (status) {
             status.textContent = 'Query ready to save (use the Saved Queries group in the Object Explorer).';
+        }
+    }
+
+    function exportWorkspace() {
+        const form = document.getElementById('form-export-workspace');
+        if (form) {
+            form.submit();
+            return;
+        }
+        showStatusMessage('Workspace export is not available on this page.');
+    }
+
+    function importWorkspace() {
+        const dialog = document.getElementById('scdb-workspace-dialog');
+        if (dialog && typeof dialog.showModal === 'function') {
+            dialog.showModal();
+            const textarea = document.getElementById('scdb-workspace-json');
+            if (textarea) { textarea.focus(); }
+            return;
+        }
+        showStatusMessage('Workspace import is not available on this page.');
+    }
+
+    function showSettingsHint() {
+        showStatusMessage('SCDMS settings are configured via SCDMS__ environment variables or appsettings.json (see docs/usage.md).');
+    }
+
+    function showStatusMessage(message) {
+        const status = document.getElementById('scdb-statusbar-msg');
+        if (status) {
+            status.textContent = message;
+        } else {
+            alert(message);
         }
     }
 
@@ -196,17 +238,9 @@
         document.dispatchEvent(new CustomEvent('scdb:import-csv-requested', { bubbles: true }));
     }
 
-    function openDocs(path) {
-        if (navigator?.clients?.matchAll) {
-            navigator.clients.matchAll().then(clients => {
-                clients.forEach(c => {
-                    if (c.url?.startsWith(self.location.origin)) {
-                        c.navigate(path);
-                    }
-                });
-            });
-        }
-        window.open(path, '_blank', 'noopener');
+    function openDocs(url) {
+        // The docs are hosted in the GitHub repos (not served from the web root).
+        window.open(url, '_blank', 'noopener');
     }
 
     function showAbout() {

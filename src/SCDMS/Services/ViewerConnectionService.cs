@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using SharpCoreDB;
 using SharpCoreDB.Client;
 using SharpCoreDB.Data.Provider;
@@ -11,13 +12,17 @@ namespace Scdms.Services;
 /// <summary>
 /// Stores active viewer connection state in the current ASP.NET Core session.
 /// </summary>
-public sealed class ViewerConnectionService(DatabaseFactory databaseFactory, IHttpContextAccessor httpContextAccessor) : IViewerConnectionService
+public sealed class ViewerConnectionService(
+    DatabaseFactory databaseFactory,
+    IHttpContextAccessor httpContextAccessor,
+    IOptions<ScdmsOptions> options) : IViewerConnectionService
 {
     private const string SessionKey = "Scdms.ActiveConnection";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly DatabaseFactory _databaseFactory = databaseFactory;
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
+    private readonly ScdmsOptions _options = options.Value;
 
     /// <inheritdoc />
     public ViewerSessionState? GetCurrentSession()
@@ -154,7 +159,7 @@ public sealed class ViewerConnectionService(DatabaseFactory databaseFactory, IHt
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private static ViewerSessionState CreateLocalSession(ConnectionRequest request)
+    private ViewerSessionState CreateLocalSession(ConnectionRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LocalDatabasePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Password);
@@ -206,9 +211,24 @@ public sealed class ViewerConnectionService(DatabaseFactory databaseFactory, IHt
         return options;
     }
 
-    private static string NormalizePath(string databasePath) => Path.IsPathRooted(databasePath)
-        ? Path.GetFullPath(databasePath)
-        : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, databasePath));
+    /// <summary>
+    /// Resolves a database path to an absolute path. Relative paths are resolved against the
+    /// SCDMS data root (same base used by "New Database…"), not against the install directory,
+    /// which is typically read-only (e.g. Program Files).
+    /// </summary>
+    private string NormalizePath(string databasePath)
+    {
+        if (Path.IsPathRooted(databasePath))
+        {
+            return Path.GetFullPath(databasePath);
+        }
+
+        var dataRoot = string.IsNullOrWhiteSpace(_options.SampleDatabasesDirectory)
+            ? ScdmsPaths.DefaultDataDirectory
+            : Path.GetFullPath(_options.SampleDatabasesDirectory);
+
+        return Path.GetFullPath(Path.Combine(dataRoot, databasePath));
+    }
 
     private static string GetConnectionName(
         string? name,

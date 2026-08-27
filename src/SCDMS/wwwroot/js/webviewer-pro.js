@@ -25,17 +25,6 @@
         }
     };
 
-    const paginationState = {
-        currentPage: 1,
-        pageSize: 100,
-        totalRows: 0,
-        get storageKey() {
-            const workspace = document.getElementById('scdb-workspace');
-            const scope = workspace?.dataset?.tabScope?.trim() || 'global';
-            return `scdb.pagination.${scope}`;
-        }
-    };
-
     function switchResultTab(name) {
         const paneResults = document.getElementById('pane-results');
         const paneMessages = document.getElementById('pane-messages');
@@ -542,9 +531,13 @@
     }
 
     function loadHistoryItem(element) {
-        const sql = JSON.parse(element.dataset.sql ?? '""');
-        if (sql) {
-            appendSqlToActiveTab(sql);
+        try {
+            const sql = JSON.parse(element.dataset.sql || '""');
+            if (sql) {
+                appendSqlToActiveTab(sql);
+            }
+        } catch {
+            // Ignore malformed/hostile payloads.
         }
     }
 
@@ -960,147 +953,6 @@
         closeSnippetDialog();
     }
 
-    function savePaginationState() {
-        try {
-            localStorage.setItem(paginationState.storageKey, JSON.stringify({
-                currentPage: paginationState.currentPage,
-                pageSize: paginationState.pageSize,
-                totalRows: paginationState.totalRows
-            }));
-        } catch {
-        }
-    }
-
-    function loadPaginationState() {
-        try {
-            const raw = localStorage.getItem(paginationState.storageKey);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                paginationState.currentPage = parsed.currentPage ?? 1;
-                paginationState.pageSize = parsed.pageSize ?? 100;
-                paginationState.totalRows = parsed.totalRows ?? 0;
-            }
-        } catch {
-        }
-    }
-
-    function setPageSize(pageSize) {
-        const size = Number.parseInt(pageSize, 10);
-        if (size > 0 && size <= 10000) {
-            paginationState.pageSize = size;
-            paginationState.currentPage = 1;
-            savePaginationState();
-            renderPaginationToolbar();
-        }
-    }
-
-    function goToPage(pageNumber) {
-        const page = Number.parseInt(pageNumber, 10);
-        const maxPage = Math.ceil(paginationState.totalRows / paginationState.pageSize) || 1;
-        if (page >= 1 && page <= maxPage) {
-            paginationState.currentPage = page;
-            savePaginationState();
-            renderPaginationToolbar();
-        }
-    }
-
-    function setResultTotal(totalRows) {
-        paginationState.totalRows = totalRows;
-        paginationState.currentPage = 1;
-        savePaginationState();
-        renderPaginationToolbar();
-    }
-
-    function renderPaginationToolbar() {
-        const toolbar = document.getElementById('scdb-pagination-toolbar');
-        if (!toolbar) {
-            return;
-        }
-
-        toolbar.innerHTML = '';
-
-        const totalPages = Math.ceil(paginationState.totalRows / paginationState.pageSize) || 1;
-        const start = (paginationState.currentPage - 1) * paginationState.pageSize + 1;
-        const end = Math.min(paginationState.currentPage * paginationState.pageSize, paginationState.totalRows);
-
-        const wrapper = document.createElement('div');
-        wrapper.style.display = 'flex';
-        wrapper.style.justifyContent = 'space-between';
-        wrapper.style.alignItems = 'center';
-        wrapper.style.gap = '12px';
-        wrapper.style.fontSize = '12px';
-
-        const info = document.createElement('span');
-        info.style.color = 'var(--scdb-chrome-text-mute)';
-        info.textContent = paginationState.totalRows === 0
-            ? 'No results'
-            : `Rows ${start}–${end} of ${paginationState.totalRows}`;
-        wrapper.appendChild(info);
-
-        const controls = document.createElement('div');
-        controls.style.display = 'flex';
-        controls.style.alignItems = 'center';
-        controls.style.gap = '8px';
-
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.className = 'scdb-btn scdb-btn--secondary';
-        prevBtn.textContent = '◀ Previous';
-        prevBtn.disabled = paginationState.currentPage === 1;
-        prevBtn.onclick = () => goToPage(paginationState.currentPage - 1);
-        controls.appendChild(prevBtn);
-
-        const pageInput = document.createElement('input');
-        pageInput.type = 'number';
-        pageInput.className = 'scdb-input scdb-mono';
-        pageInput.style.width = '50px';
-        pageInput.min = '1';
-        pageInput.max = String(totalPages);
-        pageInput.value = String(paginationState.currentPage);
-        pageInput.onchange = () => goToPage(pageInput.value);
-        controls.appendChild(pageInput);
-
-        const pageLabel = document.createElement('span');
-        pageLabel.style.color = 'var(--scdb-chrome-text-mute)';
-        pageLabel.textContent = `/ ${totalPages}`;
-        controls.appendChild(pageLabel);
-
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className = 'scdb-btn scdb-btn--secondary';
-        nextBtn.textContent = 'Next ▶';
-        nextBtn.disabled = paginationState.currentPage === totalPages || totalPages === 0;
-        nextBtn.onclick = () => goToPage(paginationState.currentPage + 1);
-        controls.appendChild(nextBtn);
-
-        const sep = document.createElement('div');
-        sep.style.width = '1px';
-        sep.style.height = '20px';
-        sep.style.backgroundColor = 'var(--scdb-panel-border)';
-        controls.appendChild(sep);
-
-        const sizeLabel = document.createElement('span');
-        sizeLabel.style.color = 'var(--scdb-chrome-text-mute)';
-        sizeLabel.textContent = 'Per page:';
-        controls.appendChild(sizeLabel);
-
-        const sizeSelect = document.createElement('select');
-        sizeSelect.className = 'scdb-input scdb-mono';
-        sizeSelect.style.width = '60px';
-        [50, 100, 250, 500, 1000].forEach(size => {
-            const opt = document.createElement('option');
-            opt.value = String(size);
-            opt.textContent = String(size);
-            opt.selected = paginationState.pageSize === size;
-            sizeSelect.appendChild(opt);
-        });
-        sizeSelect.onchange = () => setPageSize(sizeSelect.value);
-        controls.appendChild(sizeSelect);
-
-        wrapper.appendChild(controls);
-        toolbar.appendChild(wrapper);
-    }
-
     // ── Command palette ──────────────────────────────────────────────────────
 
     function buildCommandList() {
@@ -1365,6 +1217,20 @@
                 case 'dismiss-alert':
                     btn.closest('.scdb-alert')?.remove();
                     break;
+                case 'close-about': {
+                    const dialog = document.getElementById('scdb-about-dialog');
+                    if (dialog && typeof dialog.close === 'function') {
+                        dialog.close();
+                    }
+                    break;
+                }
+                case 'close-workspace': {
+                    const dialog = document.getElementById('scdb-workspace-dialog');
+                    if (dialog && typeof dialog.close === 'function') {
+                        dialog.close();
+                    }
+                    break;
+                }
                 case 'cycle-theme':
                     cycleTheme();
                     break;
@@ -1459,12 +1325,10 @@
         applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || 'dark');
         loadQueryTabs();
         loadSnippets();
-        loadPaginationState();
         wireEvents();
         initializeCommandPalette();
         initializeContextMenu();
         renderSnippetBrowser();
-        renderPaginationToolbar();
         wireKeyboardShortcuts();
         initHorizontalResizer('scdb-splitter-left', 'scdb-object-explorer', 'scdb-workspace', 'scdb.sidebar.width', 'scdb.workspace.width');
 
@@ -1507,6 +1371,24 @@
             });
         }
 
+        const workspaceDialog = document.getElementById('scdb-workspace-dialog');
+        if (workspaceDialog) {
+            workspaceDialog.addEventListener('cancel', event => {
+                event.preventDefault();
+                workspaceDialog.close();
+            });
+            workspaceDialog.addEventListener('click', event => {
+                if (event.target === workspaceDialog) {
+                    workspaceDialog.close();
+                }
+            });
+            // After "File → Export Workspace" the server returns the JSON payload in the
+            // textarea; open the dialog automatically so the user can copy or edit it.
+            if (workspaceDialog.dataset.openOnLoad === 'true') {
+                workspaceDialog.showModal();
+            }
+        }
+
         setTimeout(() => {
             document.getElementById('scdb-alert-status')?.remove();
         }, 5000);
@@ -1522,6 +1404,7 @@
     window.clearFieldError = clearFieldError;
     window.loadHistoryItem = loadHistoryItem;
     window.triggerExecuteShortcut = triggerExecuteShortcut;
+    window.addNewQueryTab = addNewQueryTab;
     window.newQueryFromSelection = newQueryFromSelection;
     window.selectTopFromSelection = selectTopFromSelection;
     window.countRowsFromSelection = countRowsFromSelection;
@@ -1540,10 +1423,17 @@
     window.openSnippetDialog = openSnippetDialog;
     window.closeSnippetDialog = closeSnippetDialog;
     window.saveSnippet = saveSnippet;
-    window.setPageSize = setPageSize;
-    window.goToPage = goToPage;
-    window.setResultTotal = setResultTotal;
     window.initialize = initialize;
+
+    // "Execute Selected": put the selection in the editor and run it.
+    window.SharpCoreDBExecuteSelection = (selected) => {
+        const editor = getEditor();
+        if (!editor || !selected) {
+            return;
+        }
+        editor.value = selected;
+        triggerExecuteShortcut();
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initialize);

@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using SharpCoreDB.Data.Provider;
@@ -29,8 +30,8 @@ public sealed class ViewerQueryService(
         var session = _viewerConnectionService.GetCurrentSession()
             ?? throw new InvalidOperationException("No active database connection is available.");
 
-        var statements = request.Sql
-            .Split([';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var statements = SplitSqlStatements(request.Sql)
+            .Select(StripComments)
             .Where(static statement => !string.IsNullOrWhiteSpace(statement))
             .ToArray();
 
@@ -129,7 +130,7 @@ public sealed class ViewerQueryService(
 
             ApplyLocalParameters(command, parameters);
 
-            if (IsSelectStatement(statement))
+            if (IsRowReturningStatement(statement))
             {
                 await using var reader = await command.ExecuteReaderAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
                 await ReadGridFromDataReaderAsync(reader, state, cancellationToken).ConfigureAwait(false);
@@ -167,7 +168,7 @@ public sealed class ViewerQueryService(
 
             ApplyServerParameters(command, parameters);
 
-            if (IsSelectStatement(statement))
+            if (IsRowReturningStatement(statement))
             {
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
                 await ReadGridFromDataReaderAsync(reader, state, cancellationToken).ConfigureAwait(false);
@@ -297,7 +298,280 @@ public sealed class ViewerQueryService(
         return $"Executed {statementCount} statement(s) in {executionTimeMs} ms. {resultSummary}. Non-query statements: {nonQueryStatementCount}.";
     }
 
-    private static bool IsSelectStatement(string statement) => statement.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Splits a batch into individual statements on semicolons that are outside string
+    /// literals ('…', "…", `…'), line comments (-- …) and block comments (/* … */).
+    /// </summary>
+    private static string[] SplitSqlStatements(string sql)
+    {
+        var statements = new List<string>();
+        var current = new StringBuilder();
+        var inSingleQuote = false;
+        var inDoubleQuote = false;
+        var inBacktick = false;
+        var inLineComment = false;
+        var inBlockComment = false;
+
+        for (var i = 0; i < sql.Length; i++)
+        {
+            var ch = sql[i];
+            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+
+            if (inLineComment)
+            {
+                current.Append(ch);
+                if (ch == '\n')
+                {
+                    inLineComment = false;
+                }
+
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                current.Append(ch);
+                if (ch == '*' && next == '/')
+                {
+                    current.Append(next);
+                    i++;
+                    inBlockComment = false;
+                }
+
+                continue;
+            }
+
+            if (inSingleQuote)
+            {
+                current.Append(ch);
+                if (ch == '\'')
+                {
+                    if (next == '\'')
+                    {
+                        current.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inSingleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inDoubleQuote)
+            {
+                current.Append(ch);
+                if (ch == '"')
+                {
+                    if (next == '"')
+                    {
+                        current.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inDoubleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inBacktick)
+            {
+                current.Append(ch);
+                if (ch == '`')
+                {
+                    if (next == '`')
+                    {
+                        current.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inBacktick = false;
+                    }
+                }
+
+                continue;
+            }
+
+            switch (ch)
+            {
+                case '\'':
+                    inSingleQuote = true;
+                    current.Append(ch);
+                    break;
+                case '"':
+                    inDoubleQuote = true;
+                    current.Append(ch);
+                    break;
+                case '`':
+                    inBacktick = true;
+                    current.Append(ch);
+                    break;
+                case '-' when next == '-':
+                    inLineComment = true;
+                    current.Append(ch);
+                    break;
+                case '/' when next == '*':
+                    inBlockComment = true;
+                    current.Append(ch);
+                    break;
+                case ';':
+                    var statement = current.ToString().Trim();
+                    if (statement.Length > 0)
+                    {
+                        statements.Add(statement);
+                    }
+
+                    current.Clear();
+                    break;
+                default:
+                    current.Append(ch);
+                    break;
+            }
+        }
+
+        var last = current.ToString().Trim();
+        if (last.Length > 0)
+        {
+            statements.Add(last);
+        }
+
+        return [.. statements];
+    }
+
+    /// <summary>
+    /// Removes line comments (-- …) and block comments (/* … */) from SQL while preserving
+    /// the content of string literals and quoted identifiers. The SharpCoreDB engine does not
+    /// strip SQL comments itself, so leading/embedded comments would otherwise break parsing.
+    /// </summary>
+    private static string StripComments(string sql)
+    {
+        var result = new StringBuilder(sql.Length);
+        var inSingleQuote = false;
+        var inDoubleQuote = false;
+        var inBacktick = false;
+        var inLineComment = false;
+        var inBlockComment = false;
+
+        for (var i = 0; i < sql.Length; i++)
+        {
+            var ch = sql[i];
+            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+
+            if (inLineComment)
+            {
+                if (ch == '\n')
+                {
+                    inLineComment = false;
+                    result.Append(ch);
+                }
+
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                if (ch == '*' && next == '/')
+                {
+                    i++;
+                    inBlockComment = false;
+                    result.Append(' ');
+                }
+
+                continue;
+            }
+
+            if (inSingleQuote)
+            {
+                result.Append(ch);
+                if (ch == '\'')
+                {
+                    if (next == '\'')
+                    {
+                        result.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inSingleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inDoubleQuote)
+            {
+                result.Append(ch);
+                if (ch == '"')
+                {
+                    if (next == '"')
+                    {
+                        result.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inDoubleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inBacktick)
+            {
+                result.Append(ch);
+                if (ch == '`')
+                {
+                    if (next == '`')
+                    {
+                        result.Append(next);
+                        i++;
+                    }
+                    else
+                    {
+                        inBacktick = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (ch == '-' && next == '-')
+            {
+                inLineComment = true;
+                i++;
+                continue;
+            }
+
+            if (ch == '/' && next == '*')
+            {
+                inBlockComment = true;
+                i++;
+                continue;
+            }
+
+            result.Append(ch);
+        }
+
+        return result.ToString();
+    }
+
+    private static bool IsRowReturningStatement(string statement)
+    {
+        var trimmed = statement.TrimStart();
+        return trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase) // CTE: WITH cte AS (...) SELECT ...
+            || trimmed.StartsWith("EXPLAIN", StringComparison.OrdinalIgnoreCase) // EXPLAIN [QUERY PLAN] SELECT ...
+            || trimmed.StartsWith("VALUES", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("PRAGMA", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool IsSchemaChangingStatement(string statement)
     {

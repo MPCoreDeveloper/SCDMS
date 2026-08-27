@@ -86,7 +86,21 @@ public static class LocalhostCertificateProvider
     {
         try
         {
-            if (!OperatingSystem.IsWindows())
+            if (OperatingSystem.IsWindows())
+            {
+                // Remove inherited ACLs and grant the current user only (best effort).
+                var fileInfo = new FileInfo(path);
+                var security = fileInfo.GetAccessControl();
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                var account = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                security.AddAccessRule(
+                    new System.Security.AccessControl.FileSystemAccessRule(
+                        account,
+                        System.Security.AccessControl.FileSystemRights.FullControl,
+                        System.Security.AccessControl.AccessControlType.Allow));
+                fileInfo.SetAccessControl(security);
+            }
+            else
             {
                 File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
@@ -98,6 +112,10 @@ public static class LocalhostCertificateProvider
         catch (UnauthorizedAccessException)
         {
             // Best effort only.
+        }
+        catch (InvalidOperationException)
+        {
+            // Best effort only (e.g. account resolution failed).
         }
     }
 }

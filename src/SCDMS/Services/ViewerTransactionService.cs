@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Http;
 using SharpCoreDB.Data.Provider;
 using Scdms.Models;
@@ -7,34 +6,40 @@ namespace Scdms.Services;
 
 /// <summary>
 /// Manages active transaction contexts per browser session for local and server modes.
+/// Contexts live in the singleton <see cref="TransactionContextStore"/> so a transaction
+/// started in one HTTP request (DI scope) remains available to later requests of the same
+/// browser session.
 /// </summary>
 public sealed class ViewerTransactionService(
     IHttpContextAccessor httpContextAccessor,
-    IViewerConnectionService connectionService) : IViewerTransactionService
+    IViewerConnectionService connectionService,
+    TransactionContextStore store) : IViewerTransactionService
 {
     private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
     private readonly IViewerConnectionService _connectionService = connectionService;
-    private readonly ConcurrentDictionary<string, TransactionContext> _contexts = new(StringComparer.Ordinal);
+    private readonly TransactionContextStore _store = store;
 
     /// <inheritdoc />
     public ViewerTransactionState? GetActiveTransaction()
     {
+        _store.SweepStale();
         var sessionId = GetSessionIdOrNull();
         if (sessionId is null)
         {
             return null;
         }
 
-        return _contexts.TryGetValue(sessionId, out var context)
-            ? context.State
+        return _store.TryGet(sessionId, out var context)
+            ? context!.State
             : null;
     }
 
     /// <inheritdoc />
     public async Task<ViewerTransactionState> BeginAsync(string? startedBy = null, CancellationToken cancellationToken = default)
     {
+        _store.SweepStale();
         var sessionId = GetSessionId();
-        if (_contexts.ContainsKey(sessionId))
+        if (_store.TryGet(sessionId, out _))
         {
             throw new InvalidOperationException("A transaction is already active for this session.");
         }
@@ -48,9 +53,9 @@ public sealed class ViewerTransactionService(
             _ => await CreateLocalContextAsync(session, startedBy, cancellationToken).ConfigureAwait(false)
         };
 
-        if (!_contexts.TryAdd(sessionId, context))
+        if (!_store.TryAdd(sessionId, context))
         {
-            await DisposeContextAsync(context).ConfigureAwait(false);
+            await TransactionContextStore.DisposeContextAsync(context).ConfigureAwait(false);
             throw new InvalidOperationException("Failed to register active transaction context.");
         }
 
@@ -60,6 +65,7 @@ public sealed class ViewerTransactionService(
     /// <inheritdoc />
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
+        _store.SweepStale();
         var context = GetRequiredContext();
 
         if (context.LocalTransaction is not null)
@@ -82,6 +88,7 @@ public sealed class ViewerTransactionService(
     /// <inheritdoc />
     public async Task RollbackAsync(CancellationToken cancellationToken = default)
     {
+        _store.SweepStale();
         var context = GetRequiredContext();
 
         if (context.LocalTransaction is not null)
@@ -112,15 +119,13 @@ public sealed class ViewerTransactionService(
             return;
         }
 
-        if (_contexts.TryRemove(sessionId, out var context))
-        {
-            await DisposeContextAsync(context).ConfigureAwait(false);
-        }
+        await _store.TryRemoveAsync(sessionId, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public bool TryGetLocalExecutionConnection(out SharpCoreDBConnection? connection)
     {
+        _store.SweepStale();
         var context = GetCurrentContextOrNull();
         connection = context?.LocalConnection;
         return connection is not null;
@@ -129,6 +134,7 @@ public sealed class ViewerTransactionService(
     /// <inheritdoc />
     public bool TryGetServerExecutionConnection(out SharpCoreDB.Client.SharpCoreDBConnection? connection)
     {
+        _store.SweepStale();
         var context = GetCurrentContextOrNull();
         connection = context?.ServerConnection;
         return connection is not null;
@@ -142,7 +148,7 @@ public sealed class ViewerTransactionService(
             return null;
         }
 
-        return _contexts.TryGetValue(sessionId, out var context)
+        return _store.TryGet(sessionId, out var context)
             ? context
             : null;
     }
@@ -202,29 +208,6 @@ public sealed class ViewerTransactionService(
         };
     }
 
-    private static async Task DisposeContextAsync(TransactionContext context)
-    {
-        if (context.LocalTransaction is not null)
-        {
-            context.LocalTransaction.Dispose();
-        }
-
-        if (context.LocalConnection is not null)
-        {
-            await context.LocalConnection.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (context.ServerTransaction is not null)
-        {
-            await context.ServerTransaction.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (context.ServerConnection is not null)
-        {
-            await context.ServerConnection.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
     private string GetSessionId()
     {
         var session = _httpContextAccessor.HttpContext?.Session
@@ -234,17 +217,4 @@ public sealed class ViewerTransactionService(
     }
 
     private string? GetSessionIdOrNull() => _httpContextAccessor.HttpContext?.Session?.Id;
-
-    private sealed class TransactionContext
-    {
-        public required ViewerTransactionState State { get; init; }
-
-        public SharpCoreDBConnection? LocalConnection { get; init; }
-
-        public SharpCoreDBTransaction? LocalTransaction { get; init; }
-
-        public SharpCoreDB.Client.SharpCoreDBConnection? ServerConnection { get; init; }
-
-        public SharpCoreDB.Client.SharpCoreDBTransaction? ServerTransaction { get; init; }
-    }
 }

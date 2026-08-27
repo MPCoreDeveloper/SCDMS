@@ -72,6 +72,7 @@ builder.Services.AddNetSecureHeadersStrictAPlus(options =>
     };
 });
 builder.Services.AddSharpCoreDB();
+builder.Services.AddSingleton<TransactionContextStore>();
 builder.Services.AddSingleton<IRecentConnectionsStore, RecentConnectionsStore>();
 builder.Services.AddSingleton<IQueryWorkspaceStore, QueryWorkspaceStore>();
 builder.Services.AddSingleton<ISampleDatabaseCatalog, SampleDatabaseCatalog>();

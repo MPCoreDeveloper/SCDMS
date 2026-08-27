@@ -92,9 +92,13 @@ public sealed class QueryWorkspaceStore(IOptions<ScdmsOptions> options) : IQuery
 
     private QueryWorkspaceState Normalize(QueryWorkspaceState state)
     {
+        // A "saved-query slot" is (name, connection mode, target key) — the same query name
+        // is allowed for different databases. Dedupe on the full slot, not on name alone.
         var saved = state.SavedQueries
             .Where(static item => !string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(item.Sql))
-            .GroupBy(static item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                static item => $"{item.Name}\u001F{item.ConnectionMode}\u001F{item.TargetKey ?? string.Empty}",
+                StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.OrderByDescending(item => item.LastUsedUtc).First())
             .OrderBy(static item => item.Name, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(1, _options.MaxSavedQueries))
