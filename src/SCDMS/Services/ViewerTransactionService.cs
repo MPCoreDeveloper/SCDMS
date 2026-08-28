@@ -70,7 +70,7 @@ public sealed class ViewerTransactionService(
 
         if (context.LocalTransaction is not null)
         {
-            await context.LocalTransaction.CommitAsync().ConfigureAwait(false);
+            await context.LocalTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             await ClearAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -93,7 +93,7 @@ public sealed class ViewerTransactionService(
 
         if (context.LocalTransaction is not null)
         {
-            await context.LocalTransaction.RollbackAsync().ConfigureAwait(false);
+            await context.LocalTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             await ClearAsync(cancellationToken).ConfigureAwait(false);
             return;
         }

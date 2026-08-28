@@ -155,7 +155,7 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
             // Mark the database as fully seeded so later launches skip the seed script.
             // Without this marker the INSERT statements would run again and fail on
             // primary-key violations, and the retry would delete the whole database.
-            await File.WriteAllTextAsync(Path.Combine(path, SeededMarkerFileName), DateTimeOffset.UtcNow.ToString("O")).ConfigureAwait(false);
+            await File.WriteAllTextAsync(Path.Combine(path, SeededMarkerFileName), DateTimeOffset.UtcNow.ToString("O"), cancellationToken).ConfigureAwait(false);
         }
         catch
         {

@@ -9,9 +9,10 @@ namespace Scdms.Services;
 public static class ScdmsVersion
 {
     public static string Current { get; } =
-        // NOSONAR(S1313): "1.0.0.0" is the fallback assembly version, not an IP address.
         (typeof(ScdmsVersion).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "1.0.0.0")
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            // NOSONAR(S1313): "1.0.0.0" is the fallback assembly version, not an IP address.
+            ?? "1.0.0.0")
         .Split('+')[0];
 
     /// <summary>Display form, e.g. "v1.0.0".</summary>
