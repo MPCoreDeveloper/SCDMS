@@ -20,6 +20,9 @@ coverage*.xml
 *.log
 server-launch.log
 
+## SonarCloud scanner (local runs)
+.sonar/
+
 ## OS
 .DS_Store
 Thumbs.db

@@ -246,6 +246,8 @@ public sealed class MetadataService(IViewerConnectionService connectionService, 
         }
         catch
         {
+            // Best-effort: object-name queries can be unsupported or throw for some
+            // engine/object combinations; missing metadata degrades gracefully to empty.
             return [];
         }
     }

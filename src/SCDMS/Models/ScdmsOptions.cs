@@ -30,6 +30,8 @@ public sealed class ScdmsOptions
     /// <summary>
     /// Password used for the default local database and built-in sample databases.
     /// </summary>
+    // NOSONAR(S2068): intentional well-known default for local-only sample databases,
+    // documented in docs/usage.md and surfaced as a UI hint; overridable via appsettings/SCDMS__*.
     public string DefaultDatabasePassword { get; set; } = "scdb";
 
     /// <summary>
