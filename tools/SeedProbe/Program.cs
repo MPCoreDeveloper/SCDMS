@@ -1,4 +1,3 @@
-// NOSONAR(S3776): deliberate end-to-end probe script; complexity is inherent to exercising many scenarios.
 using Microsoft.Extensions.Options;
 using SharpCoreDB.Data.Provider;
 using Scdms.Models;
@@ -17,8 +16,6 @@ Console.WriteLine($"Probe data root: {probeRoot}");
 var options = Options.Create(new ScdmsOptions
 {
     DefaultDatabaseName = "scdb",
-    // NOSONAR(S2068): probe mirrors the intentional well-known default for sample databases.
-    DefaultDatabasePassword = "scdb",
     DefaultDatabasePath = string.Empty,
     SampleDatabasesDirectory = probeRoot
 });
@@ -27,8 +24,8 @@ var catalog = new SampleDatabaseCatalog(options);
 
 try
 {
-    await ProbeDefaultDatabaseAsync().ConfigureAwait(false);
-    await ProbeSampleAsync(SampleDatabaseCatalog.ContosoSampleName, new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    failures += await ProbeDefaultDatabaseAsync().ConfigureAwait(false);
+    failures += await ProbeSampleAsync(SampleDatabaseCatalog.ContosoSampleName, new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["customers"] = 5,
         ["products"] = 6,
@@ -36,7 +33,7 @@ try
         ["order_items"] = 7,
         ["inventory"] = 6
     }).ConfigureAwait(false);
-    await ProbeSampleAsync(SampleDatabaseCatalog.AdventureWorksSampleName, new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    failures += await ProbeSampleAsync(SampleDatabaseCatalog.AdventureWorksSampleName, new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["product_categories"] = 4,
         ["products"] = 7,
@@ -45,8 +42,8 @@ try
         ["sales_orders"] = 5,
         ["sales_order_details"] = 6
     }).ConfigureAwait(false);
-    await ProbeNullColorAsync().ConfigureAwait(false);
-    await ProbeIdempotencyAsync().ConfigureAwait(false);
+    failures += await ProbeNullColorAsync().ConfigureAwait(false);
+    failures += await ProbeIdempotencyAsync().ConfigureAwait(false);
 }
 finally
 {
@@ -61,8 +58,6 @@ finally
     }
 }
 
-// NOSONAR(S2583): Sonar's dataflow does not track `failures`, which is captured and
-// incremented by the local `Check` function — both branches ARE reachable.
 if (failures == 0)
 {
     Console.WriteLine("SEED PROBE: ALL CHECKS PASSED");
@@ -72,31 +67,37 @@ if (failures == 0)
 Console.WriteLine($"SEED PROBE: {failures} CHECK(S) FAILED");
 return 1;
 
-async Task ProbeDefaultDatabaseAsync()
+async Task<int> ProbeDefaultDatabaseAsync()
 {
+    var probeFailures = 0;
     await catalog.EnsureDefaultDatabaseAsync().ConfigureAwait(false);
     var path = catalog.GetDefaultDatabasePath();
-    Check(File.Exists(Path.Combine(path, ".seeded")), "default database has .seeded marker");
+    probeFailures += Check(File.Exists(Path.Combine(path, ".seeded")), "default database has .seeded marker");
 
     var count = await ScalarIntAsync(path, "SELECT COUNT(*) FROM welcome").ConfigureAwait(false);
-    Check(count == 3, $"default database welcome row count = 3 (actual {count})");
+    probeFailures += Check(count == 3, $"default database welcome row count = 3 (actual {count})");
+    return probeFailures;
 }
 
-async Task ProbeSampleAsync(string sampleName, IReadOnlyDictionary<string, int> expectedCounts)
+async Task<int> ProbeSampleAsync(string sampleName, IReadOnlyDictionary<string, int> expectedCounts)
 {
+    var probeFailures = 0;
     await catalog.EnsureSampleAsync(sampleName).ConfigureAwait(false);
     var path = catalog.GetSampleDatabasePath(sampleName);
-    Check(File.Exists(Path.Combine(path, ".seeded")), $"sample '{sampleName}' has .seeded marker");
+    probeFailures += Check(File.Exists(Path.Combine(path, ".seeded")), $"sample '{sampleName}' has .seeded marker");
 
     foreach (var (table, expected) in expectedCounts)
     {
         var count = await ScalarIntAsync(path, $"SELECT COUNT(*) FROM {table}").ConfigureAwait(false);
-        Check(count == expected, $"sample '{sampleName}' table '{table}' row count = {expected} (actual {count})");
+        probeFailures += Check(count == expected, $"sample '{sampleName}' table '{table}' row count = {expected} (actual {count})");
     }
+
+    return probeFailures;
 }
 
-async Task ProbeNullColorAsync()
+async Task<int> ProbeNullColorAsync()
 {
+    var probeFailures = 0;
     var path = catalog.GetSampleDatabasePath(SampleDatabaseCatalog.AdventureWorksSampleName);
     var connectionString = new SharpCoreDBConnectionStringBuilder
     {
@@ -141,16 +142,19 @@ async Task ProbeNullColorAsync()
         }
     }
 
-    Check(foundNullColor, "adventureworks product 7 (Water Bottle) color is SQL NULL (not the string 'NULL')");
+    probeFailures += Check(foundNullColor, "adventureworks product 7 (Water Bottle) color is SQL NULL (not the string 'NULL')");
+    return probeFailures;
 }
 
-async Task ProbeIdempotencyAsync()
+async Task<int> ProbeIdempotencyAsync()
 {
+    var probeFailures = 0;
     // Second run must short-circuit on the marker file without touching data.
     await catalog.EnsureSampleAsync(SampleDatabaseCatalog.ContosoSampleName).ConfigureAwait(false);
     var path = catalog.GetSampleDatabasePath(SampleDatabaseCatalog.ContosoSampleName);
     var count = await ScalarIntAsync(path, "SELECT COUNT(*) FROM customers").ConfigureAwait(false);
-    Check(count == 5, $"re-seed is idempotent; customers row count still 5 (actual {count})");
+    probeFailures += Check(count == 5, $"re-seed is idempotent; customers row count still 5 (actual {count})");
+    return probeFailures;
 }
 
 async Task<int> ScalarIntAsync(string databasePath, string sql)
@@ -169,15 +173,14 @@ async Task<int> ScalarIntAsync(string databasePath, string sql)
     return Convert.ToInt32(result);
 }
 
-void Check(bool condition, string description)
+int Check(bool condition, string description)
 {
     if (condition)
     {
         Console.WriteLine($"PASS: {description}");
+        return 0;
     }
-    else
-    {
-        Console.WriteLine($"FAIL: {description}");
-        failures++;
-    }
+
+    Console.WriteLine($"FAIL: {description}");
+    return 1;
 }
