@@ -28,11 +28,19 @@
         // Edit
         'edit.undo': () => {
             const ed = document.getElementById('scdb-sql-editor');
-            if (ed) { ed.focus(); document.execCommand('undo'); }
+            if (ed) {
+                ed.focus();
+                // NOSONAR(S1874): no non-deprecated API exists for programmatic textarea undo.
+                document.execCommand('undo');
+            }
         },
         'edit.redo': () => {
             const ed = document.getElementById('scdb-sql-editor');
-            if (ed) { ed.focus(); document.execCommand('redo'); }
+            if (ed) {
+                ed.focus();
+                // NOSONAR(S1874): no non-deprecated API exists for programmatic textarea redo.
+                document.execCommand('redo');
+            }
         },
         'edit.select-all': () => {
             const ed = document.getElementById('scdb-sql-editor');
@@ -118,7 +126,7 @@
 
         const header = group.querySelector('.scdb-sidebar__group-header');
         const content = group.querySelector('.scdb-sidebar__group-content');
-        if (header && content && content.hasAttribute('hidden')) {
+        if (header && content?.hasAttribute('hidden')) {
             content.removeAttribute('hidden');
             header.setAttribute('aria-expanded', 'true');
             const chevron = header.querySelector('.scdb-sidebar__chevron');
@@ -256,7 +264,7 @@
     }
 
     function handleMenuAction(e) {
-        const { action, dataset } = e.detail || {};
+        const { action } = e.detail || {};
         if (!action) { return; }
 
         // Build editor context from DOM (Monaco exposes API in future)

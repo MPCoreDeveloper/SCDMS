@@ -28,6 +28,8 @@ public sealed class IndexModel(
     private readonly ISampleDatabaseCatalog _sampleDatabaseCatalog = sampleDatabaseCatalog;
     private readonly ScdmsOptions _options = options.Value;
 
+    private const string Localhost = "localhost";
+
     /// <summary>
     /// Session key marking that the user explicitly disconnected. While present, the
     /// viewer does not auto-connect to the default database on the next page load.
@@ -106,7 +108,7 @@ public sealed class IndexModel(
             // 0.0.0.0 / :: / * are not usable in a browser address bar — show localhost instead.
             var displayAddress = _options.BindAddress.Trim() switch
             {
-                "0.0.0.0" or "::" or "*" => "localhost",
+                "0.0.0.0" or "::" or "*" => Localhost,
                 _ => _options.BindAddress
             };
 
@@ -599,7 +601,7 @@ public sealed class IndexModel(
             LocalDatabasePath = profile.LocalDatabasePath ?? string.Empty,
             LocalStorageMode = profile.LocalStorageMode,
             LocalReadOnly = profile.LocalReadOnly,
-            ServerHost = profile.ServerHost ?? "localhost",
+            ServerHost = profile.ServerHost ?? Localhost,
             ServerPort = profile.ServerPort,
             ServerUseSsl = profile.ServerUseSsl,
             ServerPreferHttp3 = profile.ServerPreferHttp3,
@@ -874,7 +876,7 @@ public sealed class IndexModel(
                 LocalDatabasePath = ActiveSession.LocalDatabasePath ?? string.Empty,
                 LocalStorageMode = ActiveSession.LocalStorageMode,
                 LocalReadOnly = ActiveSession.LocalReadOnly,
-                ServerHost = ActiveSession.ServerHost ?? "localhost",
+                ServerHost = ActiveSession.ServerHost ?? Localhost,
                 ServerPort = ActiveSession.ServerPort,
                 ServerUseSsl = ActiveSession.ServerUseSsl,
                 ServerPreferHttp3 = ActiveSession.ServerPreferHttp3,
@@ -1114,7 +1116,7 @@ public sealed class IndexModel(
     {
         ConnectionMode = ViewerConnectionMode.Local,
         LocalStorageMode = DatabaseStorageMode.Directory,
-        ServerHost = "localhost",
+        ServerHost = Localhost,
         ServerPort = 5001,
         ServerUseSsl = true,
         ServerPreferHttp3 = true,

@@ -32,13 +32,13 @@ URL="https://localhost:${PORT}"
 
 echo "=== SCDMS — Sharp Core Database Management System ==="
 
-if [ "$NO_BUILD" = false ]; then
+if [[ "$NO_BUILD" = false ]]; then
     echo "[1/3] Building SCDMS ($CONFIGURATION)..."
     dotnet build "$PROJECT" -c "$CONFIGURATION" --nologo -v q
 fi
 
 echo "[2/3] Starting SCDMS on $URL ..."
-export SCDMS__HttpsPort="$PORT"
+export SCDMS__HTTPSPORT="$PORT"
 
 dotnet run --project "$PROJECT" --no-build -c "$CONFIGURATION" &
 APP_PID=$!
@@ -55,7 +55,7 @@ for _ in $(seq 1 40); do
     sleep 0.5
 done
 
-if [ "$READY" = true ]; then
+if [[ "$READY" = true ]]; then
     echo "SCDMS running at $URL"
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$URL" >/dev/null 2>&1 || true

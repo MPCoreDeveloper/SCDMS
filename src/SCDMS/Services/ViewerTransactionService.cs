@@ -30,7 +30,7 @@ public sealed class ViewerTransactionService(
         }
 
         return _store.TryGet(sessionId, out var context)
-            ? context!.State
+            ? context.State
             : null;
     }
 

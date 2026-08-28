@@ -10,7 +10,7 @@
         topItems.forEach((item, index) => {
             item.setAttribute('role', 'menuitem');
             item.setAttribute('tabindex', index === 0 ? '0' : '-1');
-            item.setAttribute('data-menu-index', String(index));
+            item.dataset.menuIndex = String(index);
 
             const menuId = item.dataset.menuId;
             if (!menuId) {
@@ -82,13 +82,13 @@
         switch (e.key) {
             case 'ArrowRight': {
                 e.preventDefault();
-                const next = topItems[parseInt(item.dataset.menuIndex, 10) + 1];
+                const next = topItems[Number.parseInt(item.dataset.menuIndex, 10) + 1];
                 if (next) { next.focus(); }
                 break;
             }
             case 'ArrowLeft': {
                 e.preventDefault();
-                const prev = topItems[parseInt(item.dataset.menuIndex, 10) - 1];
+                const prev = topItems[Number.parseInt(item.dataset.menuIndex, 10) - 1];
                 if (prev) { prev.focus(); }
                 break;
             }

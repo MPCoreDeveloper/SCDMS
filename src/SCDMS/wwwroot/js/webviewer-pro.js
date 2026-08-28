@@ -50,8 +50,15 @@
         return normalized.length <= 28 ? normalized : `${normalized.substring(0, 28)}…`;
     }
 
+    let idSequence = 0;
+
+    function uniqueId(prefix) {
+        idSequence += 1;
+        return `${prefix}-${Date.now()}-${idSequence}`;
+    }
+
     function createQueryTab(sql, title) {
-        const id = `tab-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const id = uniqueId('tab');
         return {
             id,
             sql: sql || '',
@@ -204,21 +211,6 @@
         persistQueryTabs();
     }
 
-    function duplicateActiveQueryTab() {
-        const active = getActiveQueryTab();
-        if (!active) {
-            return;
-        }
-
-        addNewQueryTab(active.sql);
-        const duplicated = getActiveQueryTab();
-        if (duplicated) {
-            duplicated.title = `${active.title} Copy`;
-            renderQueryTabs();
-            persistQueryTabs();
-        }
-    }
-
     function loadQueryTabs() {
         const editor = getEditor();
         const initialSql = editor?.value ?? '';
@@ -285,7 +277,7 @@
 
     function getSelectedTableName() {
         const selected = document.querySelector('#scdb-table-list li.selected');
-        return selected?.getAttribute('data-table')?.trim() || '';
+        return selected?.dataset.table?.trim() || '';
     }
 
     function setSelectedTableName(tableName) {
@@ -513,10 +505,10 @@
 
     function showFieldError(element, message) {
         let span = element.nextElementSibling;
-        if (!span || !span.classList.contains('scdb-validation-message')) {
+        if (!span?.classList.contains('scdb-validation-message')) {
             span = document.createElement('span');
             span.className = 'scdb-validation-message';
-            element.insertAdjacentElement('afterend', span);
+            element.after(span);
         }
 
         span.textContent = message;
@@ -525,7 +517,7 @@
     function clearFieldError(element) {
         element.classList.remove('is-invalid');
         const span = element.nextElementSibling;
-        if (span && span.classList.contains('scdb-validation-message')) {
+        if (span?.classList.contains('scdb-validation-message')) {
             span.textContent = '';
         }
     }
@@ -709,41 +701,6 @@
         downloadText(JSON.stringify(payload.rows), 'sharpcoredb-results.json', 'application/json;charset=utf-8');
     }
 
-    async function copyResultsToClipboard() {
-        const payload = collectResultsFromGrid();
-        if (!payload || payload.rows.length === 0) {
-            alert('No result rows available for copy.');
-            return;
-        }
-
-        const csv = [payload.headers.map(escapeCsvValue).join(',')];
-        payload.rows.forEach(row => csv.push(row.map(escapeCsvValue).join(',')));
-
-        await navigator.clipboard.write([
-            new ClipboardItem({
-                'text/plain': new Blob([csv.join('\r\n')], { type: 'text/plain;charset=utf-8' }),
-                'text/csv': new Blob([csv.join('\r\n')], { type: 'text/csv;charset=utf-8' })
-            })
-        ]);
-
-        alert('Results copied to clipboard.');
-    }
-
-    function initSnippetManager() {
-        const stored = localStorage.getItem(snippetState.storageKey);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                if (Array.isArray(parsed)) {
-                    snippetState.snippets = parsed.filter(s => s && typeof s.sql === 'string');
-                }
-            } catch {
-            }
-        }
-
-        renderSnippetList();
-    }
-
     function renderSnippetList() {
         const container = document.getElementById('scdb-snippet-list');
         if (!container) {
@@ -811,7 +768,7 @@
 
     function createSnippet(name, sql, category) {
         return {
-            id: `snippet-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            id: uniqueId('snippet'),
             name: name || 'Untitled Snippet',
             sql: sql || '',
             category: category || '',
@@ -831,15 +788,6 @@
         snippetState.snippets = snippetState.snippets.filter(s => s.id !== snippetId);
         persistSnippets();
         renderSnippetBrowser();
-    }
-
-    function insertSnippetToEditor(snippetId) {
-        const snippet = snippetState.snippets.find(s => s.id === snippetId);
-        if (!snippet) {
-            return;
-        }
-
-        appendSqlToActiveTab(snippet.sql);
     }
 
     function createSampleDatabase(sampleName) {
@@ -1003,14 +951,16 @@
             li.className = 'scdb-command-palette__item' + (i === commandPaletteState.selectedIndex ? ' scdb-command-palette__item--selected' : '');
             li.setAttribute('role', 'option');
             li.setAttribute('aria-selected', String(i === commandPaletteState.selectedIndex));
-            li.innerHTML = `<span class="scdb-command-palette__label">${escapeHtml(cmd.label)}</span>${cmd.hint ? `<span class="scdb-command-palette__hint">${escapeHtml(cmd.hint)}</span>` : ''}`;
+            const labelHtml = `<span class="scdb-command-palette__label">${escapeHtml(cmd.label)}</span>`;
+            const hintHtml = cmd.hint ? `<span class="scdb-command-palette__hint">${escapeHtml(cmd.hint)}</span>` : '';
+            li.innerHTML = labelHtml + hintHtml;
             li.addEventListener('click', () => { cmd.action(); closeCommandPalette(); });
             list.appendChild(li);
         });
     }
 
     function escapeHtml(str) {
-        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return String(str).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
     }
 
     function initializeCommandPalette() {
@@ -1305,7 +1255,7 @@
     };
 
     function applyTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.dataset.theme = theme;
         localStorage.setItem(THEME_STORAGE_KEY, theme);
         const meta = THEME_META[theme];
         const icon = document.getElementById('scdb-theme-icon');
@@ -1315,7 +1265,7 @@
     }
 
     function cycleTheme() {
-        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const current = document.documentElement.dataset.theme || 'dark';
         const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
         applyTheme(next);
     }

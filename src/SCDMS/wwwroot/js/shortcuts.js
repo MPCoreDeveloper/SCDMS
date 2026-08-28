@@ -55,7 +55,6 @@
         if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             dispatch('file.save-query');
-            return;
         }
 
         // Ctrl+K,Ctrl+C → comment selection (editor-level; just let default for now)

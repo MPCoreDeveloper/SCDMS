@@ -302,17 +302,49 @@ public sealed class ViewerQueryService(
     /// Splits a batch into individual statements on semicolons that are outside string
     /// literals ('…', "…", `…'), line comments (-- …) and block comments (/* … */).
     /// </summary>
+    /// <summary>
+    /// Appends a quoted literal (string, identifier or backtick) starting at <paramref name="start"/>
+    /// (the opening quote) to <paramref name="builder"/>, handling doubled-quote escapes.
+    /// Returns the index of the closing quote, or the end of the input for unterminated literals.
+    /// </summary>
+    private static int AppendQuotedLiteral(StringBuilder builder, string sql, int start, char quote)
+    {
+        var i = start;
+        builder.Append(sql[i]); // opening quote
+        i++;
+
+        while (i < sql.Length)
+        {
+            var ch = sql[i];
+            if (ch == quote)
+            {
+                if (i + 1 < sql.Length && sql[i + 1] == quote)
+                {
+                    builder.Append(quote).Append(quote);
+                    i += 2;
+                    continue;
+                }
+
+                builder.Append(ch); // closing quote
+                return i;
+            }
+
+            builder.Append(ch);
+            i++;
+        }
+
+        return i;
+    }
+
     private static string[] SplitSqlStatements(string sql)
     {
         var statements = new List<string>();
         var current = new StringBuilder();
-        var inSingleQuote = false;
-        var inDoubleQuote = false;
-        var inBacktick = false;
         var inLineComment = false;
         var inBlockComment = false;
 
-        for (var i = 0; i < sql.Length; i++)
+        var i = 0;
+        while (i < sql.Length)
         {
             var ch = sql[i];
             var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
@@ -325,6 +357,7 @@ public sealed class ViewerQueryService(
                     inLineComment = false;
                 }
 
+                i++;
                 continue;
             }
 
@@ -334,105 +367,53 @@ public sealed class ViewerQueryService(
                 if (ch == '*' && next == '/')
                 {
                     current.Append(next);
-                    i++;
+                    i += 2;
                     inBlockComment = false;
+                    continue;
                 }
 
+                i++;
                 continue;
             }
 
-            if (inSingleQuote)
+            if (ch is '\'' or '"' or '`')
             {
+                i = AppendQuotedLiteral(current, sql, i, ch);
+                i++;
+                continue;
+            }
+
+            if (ch == '-' && next == '-')
+            {
+                inLineComment = true;
                 current.Append(ch);
-                if (ch == '\'')
-                {
-                    if (next == '\'')
-                    {
-                        current.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inSingleQuote = false;
-                    }
-                }
-
+                i++;
                 continue;
             }
 
-            if (inDoubleQuote)
+            if (ch == '/' && next == '*')
             {
+                inBlockComment = true;
                 current.Append(ch);
-                if (ch == '"')
-                {
-                    if (next == '"')
-                    {
-                        current.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inDoubleQuote = false;
-                    }
-                }
-
+                i++;
                 continue;
             }
 
-            if (inBacktick)
+            if (ch == ';')
             {
-                current.Append(ch);
-                if (ch == '`')
+                var statement = current.ToString().Trim();
+                if (statement.Length > 0)
                 {
-                    if (next == '`')
-                    {
-                        current.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inBacktick = false;
-                    }
+                    statements.Add(statement);
                 }
 
+                current.Clear();
+                i++;
                 continue;
             }
 
-            switch (ch)
-            {
-                case '\'':
-                    inSingleQuote = true;
-                    current.Append(ch);
-                    break;
-                case '"':
-                    inDoubleQuote = true;
-                    current.Append(ch);
-                    break;
-                case '`':
-                    inBacktick = true;
-                    current.Append(ch);
-                    break;
-                case '-' when next == '-':
-                    inLineComment = true;
-                    current.Append(ch);
-                    break;
-                case '/' when next == '*':
-                    inBlockComment = true;
-                    current.Append(ch);
-                    break;
-                case ';':
-                    var statement = current.ToString().Trim();
-                    if (statement.Length > 0)
-                    {
-                        statements.Add(statement);
-                    }
-
-                    current.Clear();
-                    break;
-                default:
-                    current.Append(ch);
-                    break;
-            }
+            current.Append(ch);
+            i++;
         }
 
         var last = current.ToString().Trim();
@@ -452,13 +433,11 @@ public sealed class ViewerQueryService(
     private static string StripComments(string sql)
     {
         var result = new StringBuilder(sql.Length);
-        var inSingleQuote = false;
-        var inDoubleQuote = false;
-        var inBacktick = false;
         var inLineComment = false;
         var inBlockComment = false;
 
-        for (var i = 0; i < sql.Length; i++)
+        var i = 0;
+        while (i < sql.Length)
         {
             var ch = sql[i];
             var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
@@ -471,6 +450,7 @@ public sealed class ViewerQueryService(
                     result.Append(ch);
                 }
 
+                i++;
                 continue;
             }
 
@@ -478,68 +458,20 @@ public sealed class ViewerQueryService(
             {
                 if (ch == '*' && next == '/')
                 {
-                    i++;
+                    i += 2;
                     inBlockComment = false;
                     result.Append(' ');
+                    continue;
                 }
 
+                i++;
                 continue;
             }
 
-            if (inSingleQuote)
+            if (ch is '\'' or '"' or '`')
             {
-                result.Append(ch);
-                if (ch == '\'')
-                {
-                    if (next == '\'')
-                    {
-                        result.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inSingleQuote = false;
-                    }
-                }
-
-                continue;
-            }
-
-            if (inDoubleQuote)
-            {
-                result.Append(ch);
-                if (ch == '"')
-                {
-                    if (next == '"')
-                    {
-                        result.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inDoubleQuote = false;
-                    }
-                }
-
-                continue;
-            }
-
-            if (inBacktick)
-            {
-                result.Append(ch);
-                if (ch == '`')
-                {
-                    if (next == '`')
-                    {
-                        result.Append(next);
-                        i++;
-                    }
-                    else
-                    {
-                        inBacktick = false;
-                    }
-                }
-
+                i = AppendQuotedLiteral(result, sql, i, ch);
+                i++;
                 continue;
             }
 
@@ -558,6 +490,7 @@ public sealed class ViewerQueryService(
             }
 
             result.Append(ch);
+            i++;
         }
 
         return result.ToString();

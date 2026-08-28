@@ -35,12 +35,12 @@
         </div>
 
         <nav class="scdb-menubar__nav" id="scdb-menubar-nav" aria-label="Application menu">
-            <span class="scdb-menubar__item" data-menu-id="menu-file" tabindex="0">File</span>
-            <span class="scdb-menubar__item" data-menu-id="menu-edit" tabindex="-1">Edit</span>
-            <span class="scdb-menubar__item" data-menu-id="menu-view" tabindex="-1">View</span>
-            <span class="scdb-menubar__item" data-menu-id="menu-query" tabindex="-1">Query</span>
-            <span class="scdb-menubar__item" data-menu-id="menu-tools" tabindex="-1">Tools</span>
-            <span class="scdb-menubar__item" data-menu-id="menu-help" tabindex="-1">Help</span>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-file" tabindex="0">File</button>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-edit" tabindex="-1">Edit</button>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-view" tabindex="-1">View</button>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-query" tabindex="-1">Query</button>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-tools" tabindex="-1">Tools</button>
+            <button type="button" class="scdb-menubar__item" data-menu-id="menu-help" tabindex="-1">Help</button>
         </nav>
 
         <div class="scdb-menubar__right">
@@ -57,12 +57,12 @@
     </header>
 
     @* Update banner: shown by JS when /api/update-check reports a newer release *@
-    <div id="scdms-update-banner" class="scdms-update-banner" role="status" hidden>
+    <output id="scdms-update-banner" class="scdms-update-banner" hidden>
         <span>⬆️ SCDMS <span id="scdms-update-version"></span> is available —</span>
         <a id="scdms-update-link" href="#" target="_blank" rel="noopener noreferrer">download the new version</a>
         <span>or run <code>scdms --update</code>.</span>
         <button type="button" id="scdms-update-dismiss" class="scdms-update-banner__dismiss" aria-label="Dismiss notification">×</button>
-    </div>
+    </output>
 
     @* ═══════════════════════════════════════════
        MENU DROPDOWNS  (populated by menubar.js)

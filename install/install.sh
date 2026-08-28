@@ -31,7 +31,7 @@ done
 
 log() { echo "==> $*"; }
 
-if [ "$UNINSTALL" = true ]; then
+if [[ "$UNINSTALL" = true ]]; then
     log "Uninstalling SCDMS..."
     pkill -x scdms 2>/dev/null || true
     rm -rf "$INSTALL_DIR"
@@ -58,9 +58,9 @@ esac
 RID="${RID_OS}-${RID_ARCH}"
 
 # ── Resolve version ─────────────────────────────────────────────────────────
-if [ -z "$VERSION" ]; then
+if [[ -z "$VERSION" ]]; then
     log "Resolving latest SCDMS release..."
-    VERSION="$(curl -fsSL -H 'User-Agent: SCDMS-Installer' \
+    VERSION="$(curl -fsSL --proto '=https' --proto-redir '=https' -H 'User-Agent: SCDMS-Installer' \
         "https://api.github.com/repos/$REPO/releases/latest" \
         | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')"
 fi
@@ -74,12 +74,12 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 # ── Download + verify ───────────────────────────────────────────────────────
 log "[1/4] Downloading $ASSET ..."
-curl -fsSL -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
-curl -fsSL -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
+curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
+curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
 
 log "[2/4] Verifying SHA256 checksum ..."
 EXPECTED="$(grep "$ASSET" "$TMP_DIR/SHA256SUMS.txt" | awk '{print $1}')"
-if [ -z "$EXPECTED" ]; then
+if [[ -z "$EXPECTED" ]]; then
     echo "No checksum found for $ASSET in SHA256SUMS.txt"; exit 1
 fi
 if command -v sha256sum >/dev/null 2>&1; then
@@ -87,7 +87,7 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
     ACTUAL="$(shasum -a 256 "$TMP_DIR/$ASSET" | awk '{print $1}')"
 fi
-if [ "$ACTUAL" != "$EXPECTED" ]; then
+if [[ "$ACTUAL" != "$EXPECTED" ]]; then
     echo "Checksum mismatch! Expected $EXPECTED, got $ACTUAL"; exit 1
 fi
 log "      Checksum OK."
@@ -121,7 +121,7 @@ fi
 EOF
 chmod +x "$BIN_DIR/scdms-open"
 
-if [ "$RID_OS" = "linux" ]; then
+if [[ "$RID_OS" = "linux" ]]; then
     mkdir -p "$HOME/.local/share/applications"
     cat > "$HOME/.local/share/applications/scdms.desktop" <<EOF
 [Desktop Entry]

@@ -13,7 +13,7 @@ namespace Scdms.Services;
 public static class LocalhostCertificateProvider
 {
     private const string PfxFileName = "localhost.pfx";
-    private const string PasswordFileName = "localhost.pfx.key";
+    private const string PfxKeyFileName = "localhost.pfx.key";
 
     /// <summary>
     /// Returns a valid localhost certificate, generating and persisting one on first use.
@@ -25,7 +25,7 @@ public static class LocalhostCertificateProvider
         Directory.CreateDirectory(certificatesDirectory);
 
         var pfxPath = Path.Combine(certificatesDirectory, PfxFileName);
-        var passwordPath = Path.Combine(certificatesDirectory, PasswordFileName);
+        var passwordPath = Path.Combine(certificatesDirectory, PfxKeyFileName);
 
         if (File.Exists(pfxPath) && File.Exists(passwordPath))
         {

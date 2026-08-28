@@ -45,6 +45,8 @@
     --scdb-warn:             #dcdcaa;
     --scdb-error:            #f44747;
     --scdb-tx:               #ce9178;
+    /* Alert text: literal colors would have poor contrast on the light theme */
+    --scdb-alert-error-text: #f88;
 
     /* Status bar */
     --scdb-statusbar-bg:         #007acc;   /* SSMS blue connected bar */
@@ -97,6 +99,8 @@
     --scdb-statusbar-bg:         #007acc;
     --scdb-statusbar-bg-discon:  #68217a;
     --scdb-statusbar-text:       #ffffff;
+
+    --scdb-alert-error-text: #b3261e;
 
     --scdb-sidebar-bg:       #f5f5f5;
     --scdb-sidebar-text:     #1e1e1e;
@@ -253,6 +257,13 @@ html, body {
 
 .scdb-menubar__item:hover {
     background: var(--scdb-chrome-bg-hover);
+}
+
+button.scdb-menubar__item {
+    font-family: inherit;
+    background: none;
+    border: none;
+    color: var(--scdb-chrome-text);
 }
 
 .scdb-menubar__right {
@@ -501,6 +512,26 @@ html, body {
 .scdb-sidebar__tree li:hover    { background: var(--scdb-sidebar-hover); }
 .scdb-sidebar__tree li.selected { background: var(--scdb-sidebar-selected); }
 
+.scdb-sidebar__tree button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    padding: 3px 12px 3px 20px;
+    color: var(--scdb-sidebar-text);
+    font-size: 12px;
+    font-family: inherit;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scdb-sidebar__tree button:hover { background: var(--scdb-sidebar-hover); }
+
 .scdb-sidebar__tree-icon {
     width: 14px;
     height: 14px;
@@ -514,6 +545,7 @@ html, body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 
 /* ── SQL Editor panel ────────────────────────────────────────────────────── */
@@ -523,18 +555,18 @@ html, body {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    min-height: 140px;
+    min-height: 100px;
+    max-height: 70vh;
     resize: vertical;   /* browser native resize handle */
     overflow: hidden;
 }
 
+/* Textarea transparent background so mirror shows through; keep caret visible */
 .scdb-editor-textarea {
     flex: 1;
     width: 100%;
     min-height: 0;
     box-sizing: border-box;
-    background: var(--scdb-editor-bg);
-    color: var(--scdb-chrome-text);
     border: none;
     outline: none;
     resize: none;
@@ -545,6 +577,11 @@ html, body {
     tab-size: 4;
     white-space: pre;
     overflow: auto;
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--scdb-chrome-text);
 }
 
 /* ── SQL syntax-highlight editor (overlay technique) ────────────────────
@@ -575,15 +612,6 @@ html, body {
     background: var(--scdb-editor-bg);
     color: var(--scdb-chrome-text);
     z-index: 0;
-}
-
-/* Textarea transparent background so mirror shows through; keep caret visible */
-.scdb-editor-textarea {
-    position: relative;
-    z-index: 1;
-    background: transparent;
-    color: transparent;
-    caret-color: var(--scdb-chrome-text);
 }
 
 .scdb-editor-textarea:focus {
@@ -960,7 +988,7 @@ html, body {
 .scdb-alert--error {
     background: rgba(244, 71, 71, 0.1);
     border-left-color: var(--scdb-error);
-    color: #f88;
+    color: var(--scdb-alert-error-text);
 }
 
 .scdb-alert--success {
@@ -984,6 +1012,10 @@ html, body {
 }
 
 .scdb-panel-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
     font-size: 12px;
     color: var(--scdb-chrome-text-mute);
     padding: 5px 14px;
@@ -1146,7 +1178,7 @@ html, body {
     font-size: 11px;
     line-height: 1.5;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
     color: var(--scdb-chrome-text);
 }
 
@@ -1285,6 +1317,7 @@ html, body {
     justify-content: center;
     padding-top: 80px;
     z-index: 2000;
+    animation: fadeIn 0.15s ease-out;
 }
 
 .scdb-command-palette {
@@ -1496,6 +1529,10 @@ html, body {
     align-items: center;
     gap: 12px;
     font-size: 12px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--scdb-panel-border);
+    background: var(--scdb-panel-bg);
+    flex-shrink: 0;
 }
 
 .scdb-pagination-toolbar .scdb-btn {
@@ -1554,10 +1591,6 @@ html, body {
 }
 
 /* ── Animation tweaks ────────────────────────────────────────────────── */
-.scdb-overlay {
-    animation: fadeIn 0.15s ease-out;
-}
-
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -1588,12 +1621,6 @@ html, body {
 /* ── Utility classes for inline style cleanup ────────────────────────── */
 
 /* Layout & Display */
-.scdb-toolbar__separator {
-    width: 1px;
-    height: 24px;
-    background: var(--scdb-toolbar-border);
-    margin: 0 4px;
-}
 
 .scdb-float-right { float: right; }
 
@@ -1809,23 +1836,7 @@ html, body {
     white-space: pre-wrap;
 }
 
-/* ── Pagination toolbar ──────────────────────────────────────────────────── */
-.scdb-pagination-toolbar {
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--scdb-panel-border);
-    background: var(--scdb-panel-bg);
-    flex-shrink: 0;
-}
-
 /* ── Panel tab flex layout ───────────────────────────────────────────────── */
-.scdb-panel-tab {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-}
-
-/* ── Compact button variant ──────────────────────────────────────────────── */
 .scdb-btn--compact {
     padding: 1px 8px;
     font-size: 11px;

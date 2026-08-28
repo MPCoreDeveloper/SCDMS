@@ -1,3 +1,4 @@
+// NOSONAR(S3776): deliberate end-to-end probe script; complexity is inherent to exercising many scenarios.
 using Microsoft.Extensions.Options;
 using SharpCoreDB.Data.Provider;
 using Scdms.Models;
@@ -16,6 +17,7 @@ Console.WriteLine($"Probe data root: {probeRoot}");
 var options = Options.Create(new ScdmsOptions
 {
     DefaultDatabaseName = "scdb",
+    // NOSONAR(S2068): probe mirrors the intentional well-known default for sample databases.
     DefaultDatabasePassword = "scdb",
     DefaultDatabasePath = string.Empty,
     SampleDatabasesDirectory = probeRoot
@@ -59,8 +61,16 @@ finally
     }
 }
 
-Console.WriteLine(failures == 0 ? "SEED PROBE: ALL CHECKS PASSED" : $"SEED PROBE: {failures} CHECK(S) FAILED");
-return failures == 0 ? 0 : 1;
+// NOSONAR(S2583): Sonar's dataflow does not track `failures`, which is captured and
+// incremented by the local `Check` function — both branches ARE reachable.
+if (failures == 0)
+{
+    Console.WriteLine("SEED PROBE: ALL CHECKS PASSED");
+    return 0;
+}
+
+Console.WriteLine($"SEED PROBE: {failures} CHECK(S) FAILED");
+return 1;
 
 async Task ProbeDefaultDatabaseAsync()
 {

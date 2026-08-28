@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using SharpCoreDB.Data.Provider;
 using Scdms.Models;
 
@@ -24,7 +25,7 @@ public sealed class TransactionContextStore : IAsyncDisposable
     /// <summary>
     /// Gets the transaction context for a session, touching it to reflect recent activity.
     /// </summary>
-    public bool TryGet(string sessionId, out TransactionContext? context)
+    public bool TryGet(string sessionId, [NotNullWhen(true)] out TransactionContext? context)
     {
         if (_contexts.TryGetValue(sessionId, out var found))
         {
@@ -116,7 +117,7 @@ public sealed class TransactionContextStore : IAsyncDisposable
     {
         if (context.LocalTransaction is not null)
         {
-            context.LocalTransaction.Dispose();
+            await context.LocalTransaction.DisposeAsync().ConfigureAwait(false);
         }
 
         if (context.LocalConnection is not null)

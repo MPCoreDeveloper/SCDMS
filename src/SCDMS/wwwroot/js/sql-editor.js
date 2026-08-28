@@ -41,7 +41,8 @@
         'CURRENT_DATE', 'CURRENT_TIMESTAMP'
     ]);
 
-    const TOKEN_RX = /'[^'\n]*(?:''[^'\n]*)*'|"[^"\n]*(?:""[^"\n]*)*"|\b\d+(?:\.\d+)?\b|\b(?:[A-Za-z_][A-Za-z0-9_]*)\b|--[^\n]*|\/\*[\s\S]*?\*\/|<=|>=|<>|!=|==|=|<|>|\(|\)|,|;|\*|\+|-|\/|%/g;
+    // NOSONAR(S5843): the tokenizer regex is intentionally comprehensive; splitting it would risk highlighting regressions.
+    const TOKEN_RX = /'[^'\n]*(?:''[^'\n]*)*'|"[^"\n]*(?:""[^"\n]*)*"|\b\d+(?:\.\d+)?\b|\b(?:[A-Za-z_]\w*)\b|--[^\n]*|\/\*[\s\S]*?\*\/|<=|>=|<>|!=|==|=|<|>|\(|\)|,|;|\*|\+|-|\/|%/g;
 
     let mirror = null;
     let editor = null;
@@ -74,7 +75,7 @@
                 cls = 'tok-ident';
             } else if (token.startsWith('--') || token.startsWith('/*')) {
                 cls = 'tok-comment';
-            } else if (/^[0-9]/.test(token)) {
+            } else if (/^\d/.test(token)) {
                 cls = 'tok-number';
             } else if (SQL_KEYWORDS.has(upper)) {
                 cls = 'tok-keyword';
@@ -82,7 +83,7 @@
                 cls = 'tok-type';
             } else if (SQL_FUNCTIONS.has(upper)) {
                 cls = 'tok-function';
-            } else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(token)) {
+            } else if (/^[A-Za-z_]\w*$/.test(token)) {
                 // Heuristic: identifier
                 cls = 'tok-ident-soft';
             } else {
@@ -135,7 +136,7 @@
             mirror.id = 'scdb-sql-mirror';
             mirror.className = 'scdb-sql-mirror';
             mirror.setAttribute('aria-hidden', 'true');
-            wrapper.insertBefore(mirror, editor);
+            editor.before(mirror);
         }
 
         const syncAndStyle = () => sync();
