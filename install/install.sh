@@ -31,6 +31,9 @@ done
 
 log() { echo "==> $*"; }
 
+# Enforce HTTPS for every download (no insecure redirects).
+HTTPS_CURL_FLAGS="--proto =https --proto-redir =https"
+
 if [[ "$UNINSTALL" = true ]]; then
     log "Uninstalling SCDMS..."
     pkill -x scdms 2>/dev/null || true
@@ -60,7 +63,7 @@ RID="${RID_OS}-${RID_ARCH}"
 # ── Resolve version ─────────────────────────────────────────────────────────
 if [[ -z "$VERSION" ]]; then
     log "Resolving latest SCDMS release..."
-    VERSION="$(curl -fsSL --proto '=https' --proto-redir '=https' -H 'User-Agent: SCDMS-Installer' \
+    VERSION="$(curl -fsSL $HTTPS_CURL_FLAGS -H 'User-Agent: SCDMS-Installer' \
         "https://api.github.com/repos/$REPO/releases/latest" \
         | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')"
 fi
@@ -74,8 +77,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 # ── Download + verify ───────────────────────────────────────────────────────
 log "[1/4] Downloading $ASSET ..."
-curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
-curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
+curl -fsSL $HTTPS_CURL_FLAGS -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
+curl -fsSL $HTTPS_CURL_FLAGS -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
 
 log "[2/4] Verifying SHA256 checksum ..."
 EXPECTED="$(grep "$ASSET" "$TMP_DIR/SHA256SUMS.txt" | awk '{print $1}')"

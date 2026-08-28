@@ -242,7 +242,7 @@ public sealed class MetadataService(IViewerConnectionService connectionService, 
                 .SelectMany(static row => row.Values.Take(1))
                 .Select(static value => value?.ToString())
                 .Where(static value => !string.IsNullOrWhiteSpace(value))
-                .Select(static value => value!)];
+                .Select(static value => value ?? string.Empty)];
         }
         catch
         {

@@ -70,7 +70,7 @@ public sealed class ViewerTransactionService(
 
         if (context.LocalTransaction is not null)
         {
-            context.LocalTransaction.Commit();
+            await context.LocalTransaction.CommitAsync().ConfigureAwait(false);
             await ClearAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -93,7 +93,7 @@ public sealed class ViewerTransactionService(
 
         if (context.LocalTransaction is not null)
         {
-            context.LocalTransaction.Rollback();
+            await context.LocalTransaction.RollbackAsync().ConfigureAwait(false);
             await ClearAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -167,7 +167,7 @@ public sealed class ViewerTransactionService(
         var connection = new SharpCoreDBConnection(_connectionService.BuildLocalConnectionString(session));
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-        var transaction = (SharpCoreDBTransaction)connection.BeginTransaction();
+        var transaction = (SharpCoreDBTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var state = new ViewerTransactionState
         {
             ConnectionMode = ViewerConnectionMode.Local,

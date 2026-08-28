@@ -757,7 +757,7 @@ public sealed class IndexModel(
             var escapedName = NewTableName.Trim().Replace("\"", "\"\"", StringComparison.Ordinal);
             var createSql = $"CREATE TABLE IF NOT EXISTS \"{escapedName}\" ({NewTableColumnsDefinition.Trim()});";
             Query = new QueryExecutionRequest { Sql = createSql, ParametersJson = string.Empty };
-            var result = await _viewerQueryService.ExecuteAsync(Query, HttpContext.RequestAborted).ConfigureAwait(false);
+            await _viewerQueryService.ExecuteAsync(Query, HttpContext.RequestAborted).ConfigureAwait(false);
             SelectedTable = NewTableName.Trim();
             StatusMessage = $"Table '{NewTableName.Trim()}' created.";
             await LoadPageStateAsync(HttpContext.RequestAborted, preserveFormValues: true, keepQueryResult: true).ConfigureAwait(false);
@@ -811,7 +811,7 @@ public sealed class IndexModel(
             }
 
             Query = new QueryExecutionRequest { Sql = builder.ToString(), ParametersJson = string.Empty };
-            var result = await _viewerQueryService.ExecuteAsync(Query, HttpContext.RequestAborted).ConfigureAwait(false);
+            await _viewerQueryService.ExecuteAsync(Query, HttpContext.RequestAborted).ConfigureAwait(false);
             SelectedTable = ImportCsvTableName.Trim();
             ImportCsvContent = string.Empty;
             StatusMessage = $"Imported CSV into table '{ImportCsvTableName.Trim()}' ({insertSqls.Count} rows).";

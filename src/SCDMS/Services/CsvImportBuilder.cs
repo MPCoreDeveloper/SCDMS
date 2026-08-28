@@ -117,7 +117,8 @@ public static class CsvImportBuilder
         var current = new System.Text.StringBuilder();
         var inQuotes = false;
 
-        for (var i = 0; i < line.Length; i++)
+        var i = 0;
+        while (i < line.Length)
         {
             var ch = line[i];
 
@@ -126,12 +127,11 @@ public static class CsvImportBuilder
                 if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
                 {
                     current.Append('"');
-                    i++;
+                    i += 2;
+                    continue;
                 }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
+
+                inQuotes = !inQuotes;
             }
             else if (ch == ',' && !inQuotes)
             {
@@ -142,6 +142,8 @@ public static class CsvImportBuilder
             {
                 current.Append(ch);
             }
+
+            i++;
         }
 
         fields.Add(current.ToString());

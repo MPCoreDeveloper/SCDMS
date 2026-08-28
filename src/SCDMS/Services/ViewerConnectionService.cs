@@ -126,7 +126,7 @@ public sealed class ViewerConnectionService(
                 await ProbeLocalConnectionAsync(sessionState, cancellationToken).ConfigureAwait(false);
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(sessionState.ConnectionMode), sessionState.ConnectionMode, "Unsupported connection mode.");
+                throw new ArgumentOutOfRangeException(nameof(sessionState), sessionState.ConnectionMode, "Unsupported connection mode.");
         }
     }
 
@@ -154,8 +154,10 @@ public sealed class ViewerConnectionService(
         return await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var options = CreateDatabaseOptions(sessionState.LocalStorageMode, sessionState.LocalReadOnly);
-            return _databaseFactory.CreateWithOptions(sessionState.LocalDatabasePath!, sessionState.Password, options);
+            var databaseOptions = CreateDatabaseOptions(sessionState.LocalStorageMode, sessionState.LocalReadOnly);
+            var localPath = sessionState.LocalDatabasePath;
+            ArgumentException.ThrowIfNullOrWhiteSpace(localPath);
+            return _databaseFactory.CreateWithOptions(localPath, sessionState.Password, databaseOptions);
         }, cancellationToken).ConfigureAwait(false);
     }
 

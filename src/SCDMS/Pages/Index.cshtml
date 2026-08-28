@@ -220,22 +220,22 @@
 
                         <dl class="scdb-session-dl">
                             <dt>Name</dt>
-                            <dd class="scdb-mono">@Model.ActiveSession!.Name</dd>
+                            <dd class="scdb-mono">@Model.ActiveSession?.Name</dd>
                             <dt>Mode</dt>
-                            <dd>@Model.ActiveSession.ConnectionMode</dd>
-                            @if (!string.IsNullOrWhiteSpace(Model.ActiveSession.LocalDatabasePath))
+                            <dd>@Model.ActiveSession?.ConnectionMode</dd>
+                            @if (!string.IsNullOrWhiteSpace(Model.ActiveSession?.LocalDatabasePath))
                             {
                                 <dt>Path</dt>
-                                <dd class="scdb-mono scdb-truncate" title="@Model.ActiveSession.LocalDatabasePath">
-                                    @Model.ActiveSession.LocalDatabasePath
+                                <dd class="scdb-mono scdb-truncate" title="@Model.ActiveSession?.LocalDatabasePath">
+                                    @Model.ActiveSession?.LocalDatabasePath
                                 </dd>
                             }
-                            @if (!string.IsNullOrWhiteSpace(Model.ActiveSession.ServerHost))
+                            @if (!string.IsNullOrWhiteSpace(Model.ActiveSession?.ServerHost))
                             {
                                 <dt>Host</dt>
-                                <dd class="scdb-mono">@Model.ActiveSession.ServerHost:@Model.ActiveSession.ServerPort</dd>
+                                <dd class="scdb-mono">@Model.ActiveSession?.ServerHost:@Model.ActiveSession?.ServerPort</dd>
                                 <dt>Database</dt>
-                                <dd class="scdb-mono">@Model.ActiveSession.ServerDatabase</dd>
+                                <dd class="scdb-mono">@Model.ActiveSession?.ServerDatabase</dd>
                             }
                         </dl>
 
@@ -243,7 +243,7 @@
                         {
                             <div class="scdb-alert scdb-alert--warn scdb-mt-10">
                                 <span>⚡</span>
-                                <span>Transaction active — @Model.ActiveTransaction!.ConnectionMode</span>
+                                <span>Transaction active — @Model.ActiveTransaction?.ConnectionMode</span>
                             </div>
                         }
 

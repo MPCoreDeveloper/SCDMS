@@ -94,12 +94,12 @@ public sealed class GitHubUpdateCheckService(HttpClient httpClient, ScdmsOptions
         }
 
         var padded = string.Join('.', parts.Concat(Enumerable.Repeat("0", Math.Max(0, 4 - parts.Length))));
-        return Version.TryParse(padded, out version!);
+        return Version.TryParse(padded, out version!); // NOSONAR(S8970): .NET's TryParse out parameter is Version?, so the null-forgiving operator is required.
     }
 
     private static bool TryReadCache(string cacheFilePath, out UpdateCheckResult cached)
     {
-        cached = null!;
+        cached = null!; // NOSONAR(S8970): required to satisfy the non-nullable out parameter before the early-return path.
         try
         {
             if (!File.Exists(cacheFilePath))

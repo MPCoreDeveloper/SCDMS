@@ -155,7 +155,7 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
             // Mark the database as fully seeded so later launches skip the seed script.
             // Without this marker the INSERT statements would run again and fail on
             // primary-key violations, and the retry would delete the whole database.
-            File.WriteAllText(Path.Combine(path, SeededMarkerFileName), DateTimeOffset.UtcNow.ToString("O"));
+            await File.WriteAllTextAsync(Path.Combine(path, SeededMarkerFileName), DateTimeOffset.UtcNow.ToString("O")).ConfigureAwait(false);
         }
         catch
         {
@@ -173,6 +173,8 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
                 }
                 catch
                 {
+                    // Best-effort: if cleanup fails, a partial database remains; the missing
+                    // .seeded marker makes the next launch retry the seed from a clean state.
                 }
             }
 

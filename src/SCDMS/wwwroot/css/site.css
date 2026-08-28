@@ -1266,15 +1266,6 @@ button.scdb-menubar__item {
 }
 
 /* ── Editor panel resize handle ──────────────────────────────────────── */
-.scdb-editor-panel {
-    min-height: 100px;
-    max-height: 70vh;
-}
-
-.scdb-workspace {
-    position: relative;
-}
-
 /* ── Responsive: hide right panel on narrow viewports ───────────────── */
 @media (max-width: 900px) {
     .scdb-right-panel { display: none; }
