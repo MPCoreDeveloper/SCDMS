@@ -12,8 +12,7 @@ namespace Scdms.Pages;
 public sealed class IndexModel(
     IRecentConnectionsStore recentConnectionsStore,
     IQueryWorkspaceStore queryWorkspaceStore,
-    IViewerConnectionService viewerConnectionService,
-    IViewerTransactionService transactionService,
+    ViewerSessionServices sessionServices,
     IMetadataService metadataService,
     IViewerQueryService viewerQueryService,
     ISampleDatabaseCatalog sampleDatabaseCatalog,
@@ -21,8 +20,8 @@ public sealed class IndexModel(
 {
     private readonly IRecentConnectionsStore _recentConnectionsStore = recentConnectionsStore;
     private readonly IQueryWorkspaceStore _queryWorkspaceStore = queryWorkspaceStore;
-    private readonly IViewerConnectionService _viewerConnectionService = viewerConnectionService;
-    private readonly IViewerTransactionService _transactionService = transactionService;
+    private readonly IViewerConnectionService _viewerConnectionService = sessionServices.ConnectionService;
+    private readonly IViewerTransactionService _transactionService = sessionServices.TransactionService;
     private readonly IMetadataService _metadataService = metadataService;
     private readonly IViewerQueryService _viewerQueryService = viewerQueryService;
     private readonly ISampleDatabaseCatalog _sampleDatabaseCatalog = sampleDatabaseCatalog;

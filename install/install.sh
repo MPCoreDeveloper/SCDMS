@@ -20,6 +20,9 @@ BIN_DIR="$HOME/.local/bin"
 VERSION=""
 UNINSTALL=false
 
+# Only allow HTTPS (and HTTPS redirects) for all curl downloads.
+CURL_PROTO_FLAGS=(--proto '=https' --proto-redir '=https')
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)   VERSION="$2"; shift 2 ;;
@@ -60,7 +63,7 @@ RID="${RID_OS}-${RID_ARCH}"
 # ── Resolve version ─────────────────────────────────────────────────────────
 if [[ -z "$VERSION" ]]; then
     log "Resolving latest SCDMS release..."
-    VERSION="$(curl -fsSL --proto '=https' --proto-redir '=https' -H 'User-Agent: SCDMS-Installer' \
+    VERSION="$(curl -fsSL "${CURL_PROTO_FLAGS[@]}" -H 'User-Agent: SCDMS-Installer' \
         "https://api.github.com/repos/$REPO/releases/latest" \
         | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')"
 fi
@@ -74,8 +77,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 # ── Download + verify ───────────────────────────────────────────────────────
 log "[1/4] Downloading $ASSET ..."
-curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
-curl -fsSL --proto '=https' --proto-redir '=https' -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
+curl -fsSL "${CURL_PROTO_FLAGS[@]}" -o "$TMP_DIR/$ASSET" "$BASE_URL/$ASSET"
+curl -fsSL "${CURL_PROTO_FLAGS[@]}" -o "$TMP_DIR/SHA256SUMS.txt" "$BASE_URL/SHA256SUMS.txt"
 
 log "[2/4] Verifying SHA256 checksum ..."
 EXPECTED="$(grep "$ASSET" "$TMP_DIR/SHA256SUMS.txt" | awk '{print $1}')"

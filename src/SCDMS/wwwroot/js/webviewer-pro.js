@@ -276,7 +276,7 @@
     }
 
     function getSelectedTableName() {
-        const selected = document.querySelector('#scdb-table-list li.selected');
+        const selected = document.querySelector('#scdb-table-list li.selected button[data-table]');
         return selected?.dataset.table?.trim() || '';
     }
 
@@ -286,7 +286,7 @@
 
     function selectTable(element, tableName) {
         document.querySelectorAll('#scdb-table-list li').forEach(li => li.classList.remove('selected'));
-        element.classList.add('selected');
+        element.closest('li')?.classList.add('selected');
 
         // Keep every hidden SelectedTable input in sync (preview, execute, script-table forms…).
         document.querySelectorAll('input[name="SelectedTable"]').forEach(hidden => {
@@ -926,8 +926,7 @@
         commandPaletteState.commands = buildCommandList();
         commandPaletteState.filtered = [...commandPaletteState.commands];
         commandPaletteState.selectedIndex = 0;
-        overlay.classList.remove('scdb-hidden');
-        overlay.setAttribute('aria-hidden', 'false');
+        overlay.showModal();
         if (input) {
             input.value = '';
             input.focus();
@@ -938,8 +937,7 @@
     function closeCommandPalette() {
         const overlay = document.getElementById('scdb-command-palette');
         if (!overlay) return;
-        overlay.classList.add('scdb-hidden');
-        overlay.setAttribute('aria-hidden', 'true');
+        overlay.close();
     }
 
     function renderCommandList() {
@@ -949,8 +947,6 @@
         commandPaletteState.filtered.forEach((cmd, i) => {
             const li = document.createElement('li');
             li.className = 'scdb-command-palette__item' + (i === commandPaletteState.selectedIndex ? ' scdb-command-palette__item--selected' : '');
-            li.setAttribute('role', 'option');
-            li.setAttribute('aria-selected', String(i === commandPaletteState.selectedIndex));
             const labelHtml = `<span class="scdb-command-palette__label">${escapeHtml(cmd.label)}</span>`;
             const hintHtml = cmd.hint ? `<span class="scdb-command-palette__hint">${escapeHtml(cmd.hint)}</span>` : '';
             li.innerHTML = labelHtml + hintHtml;
@@ -991,14 +987,18 @@
                 e.preventDefault();
                 const cmd = commandPaletteState.filtered[commandPaletteState.selectedIndex];
                 if (cmd) { cmd.action(); closeCommandPalette(); }
-            } else if (e.key === 'Escape') {
-                closeCommandPalette();
             }
         });
 
-        // Close on overlay backdrop click
+        // Close on backdrop click (native <dialog> routes backdrop clicks to the element)
         overlay.addEventListener('click', e => {
             if (e.target === overlay) closeCommandPalette();
+        });
+
+        // Escape is handled natively by <dialog>; route it through our close routine.
+        overlay.addEventListener('cancel', e => {
+            e.preventDefault();
+            closeCommandPalette();
         });
     }
 
@@ -1034,11 +1034,11 @@
         const tableList = document.getElementById('scdb-table-list');
         if (tableList) {
             tableList.addEventListener('contextmenu', e => {
-                const li = e.target.closest('li[data-table]');
-                if (!li) return;
+                const btn = e.target.closest('button[data-table]');
+                if (!btn) return;
                 e.preventDefault();
-                setSelectedTableName(li.dataset.table);
-                showContextMenu(e.clientX, e.clientY, li.dataset.table);
+                setSelectedTableName(btn.dataset.table);
+                showContextMenu(e.clientX, e.clientY, btn.dataset.table);
             });
         }
 
@@ -1201,16 +1201,8 @@
             });
         });
 
-        // Table li: keyboard Enter/Space acts as click
-        document.getElementById('scdb-table-list')?.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                const li = e.target.closest('li[data-table]');
-                if (li) {
-                    e.preventDefault();
-                    selectTable(li, li.dataset.table);
-                }
-            }
-        });
+        // Table items are native <button> elements, so Enter/Space activate them
+        // via the delegated data-action click handler (no manual keydown needed).
 
         // Prevent browser context menu on table list (JS delegation handles it)
         document.getElementById('scdb-table-list')?.addEventListener('contextmenu', e => {

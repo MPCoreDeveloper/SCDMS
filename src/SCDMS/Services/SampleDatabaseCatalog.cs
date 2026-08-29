@@ -21,6 +21,15 @@ public sealed class SampleDatabaseCatalog(IOptions<ScdmsOptions> options) : ISam
     /// </summary>
     private const string SeededMarkerFileName = ".seeded";
 
+    /// <summary>Quote character used when formatting seed values as SQL literals.</summary>
+    private const char SqlQuote = '\'';
+
+    private static readonly HashSet<string> KnownTableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "customers", "products", "orders", "order_items", "inventory",
+        "product_categories", "sales_territories", "sales_orders", "sales_order_details", "welcome"
+    };
+
     private readonly ScdmsOptions _options = options.Value;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -215,15 +224,9 @@ private const string AdventureWorksScript =
 
     private static string[] BuildScript(string compactScript)
     {
-        const char quote = '\'';
         var tokens = compactScript.Split('|');
         var result = new List<string>();
         var index = 0;
-        var knownTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "customers", "products", "orders", "order_items", "inventory",
-            "product_categories", "sales_territories", "sales_orders", "sales_order_details", "welcome"
-        };
 
         while (index < tokens.Length)
         {
@@ -242,42 +245,49 @@ private const string AdventureWorksScript =
             }
 
             // Table data: tokens[index] = table, tokens[index+1] = columns, then row values.
-            var table = token;
-            if (index + 1 >= tokens.Length)
-            {
-                throw new InvalidDataException($"Seed script table '{table}' is missing its column list.");
-            }
-
-            var columns = tokens[index + 1].Split(',');
-            index += 2;
-
-            while (index < tokens.Length
-                && !tokens[index].StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
-                && !knownTables.Contains(tokens[index]))
-            {
-                var values = new string[columns.Length];
-                for (var i = 0; i < columns.Length; i++)
-                {
-                    if (index >= tokens.Length
-                        || tokens[index].StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
-                        || knownTables.Contains(tokens[index]))
-                    {
-                        throw new InvalidDataException(
-                            $"Seed script table '{table}' has a row with fewer than {columns.Length} values. Check the compact script alignment.");
-                    }
-
-                    values[i] = FormatSeedValue(tokens[index], quote);
-                    index++;
-                }
-
-                result.Add("INSERT INTO " + table + " (" + string.Join(", ", columns) + ") VALUES (" + string.Join(", ", values) + ");");
-            }
+            index = ParseTableRows(tokens, index, result);
         }
 
         return [.. result];
     }
 
-    private static string FormatSeedValue(string value, char quote)
+    private static int ParseTableRows(string[] tokens, int index, List<string> result)
+    {
+        var table = tokens[index];
+        if (index + 1 >= tokens.Length)
+        {
+            throw new InvalidDataException($"Seed script table '{table}' is missing its column list.");
+        }
+
+        var columns = tokens[index + 1].Split(',');
+        index += 2;
+
+        while (index < tokens.Length
+            && !tokens[index].StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
+            && !KnownTableNames.Contains(tokens[index]))
+        {
+            var values = new string[columns.Length];
+            for (var i = 0; i < columns.Length; i++)
+            {
+                if (index >= tokens.Length
+                    || tokens[index].StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)
+                    || KnownTableNames.Contains(tokens[index]))
+                {
+                    throw new InvalidDataException(
+                        $"Seed script table '{table}' has a row with fewer than {columns.Length} values. Check the compact script alignment.");
+                }
+
+                values[i] = FormatSeedValue(tokens[index]);
+                index++;
+            }
+
+            result.Add("INSERT INTO " + table + " (" + string.Join(", ", columns) + ") VALUES (" + string.Join(", ", values) + ");");
+        }
+
+        return index;
+    }
+
+    private static string FormatSeedValue(string value)
     {
         if (string.Equals(value, "NULL", StringComparison.OrdinalIgnoreCase))
         {
@@ -289,6 +299,7 @@ private const string AdventureWorksScript =
             return value;
         }
 
-        return string.Concat(quote.ToString(), value.Replace(quote.ToString(), new string(quote, 2), StringComparison.Ordinal), quote.ToString());
+        var quote = SqlQuote.ToString();
+        return string.Concat(quote, value.Replace(quote, new string(SqlQuote, 2), StringComparison.Ordinal), quote);
     }
 }

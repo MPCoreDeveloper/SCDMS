@@ -30,16 +30,16 @@
             const ed = document.getElementById('scdb-sql-editor');
             if (ed) {
                 ed.focus();
-                // NOSONAR(S1874): no non-deprecated API exists for programmatic textarea undo.
-                document.execCommand('undo');
+                // No non-deprecated API exists for programmatic textarea undo.
+                document.execCommand('undo'); // NOSONAR(S1874)
             }
         },
         'edit.redo': () => {
             const ed = document.getElementById('scdb-sql-editor');
             if (ed) {
                 ed.focus();
-                // NOSONAR(S1874): no non-deprecated API exists for programmatic textarea redo.
-                document.execCommand('redo');
+                // No non-deprecated API exists for programmatic textarea redo.
+                document.execCommand('redo'); // NOSONAR(S1874)
             }
         },
         'edit.select-all': () => {

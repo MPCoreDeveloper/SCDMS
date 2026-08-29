@@ -299,10 +299,6 @@ public sealed class ViewerQueryService(
     }
 
     /// <summary>
-    /// Splits a batch into individual statements on semicolons that are outside string
-    /// literals ('…', "…", `…'), line comments (-- …) and block comments (/* … */).
-    /// </summary>
-    /// <summary>
     /// Appends a quoted literal (string, identifier or backtick) starting at <paramref name="start"/>
     /// (the opening quote) to <paramref name="builder"/>, handling doubled-quote escapes.
     /// Returns the index of the closing quote, or the end of the input for unterminated literals.
@@ -336,93 +332,121 @@ public sealed class ViewerQueryService(
         return i;
     }
 
+    /// <summary>
+    /// Splits a batch into individual statements on semicolons that are outside string
+    /// literals ('…', "…", `…'), line comments (-- …) and block comments (/* … */).
+    /// </summary>
     private static string[] SplitSqlStatements(string sql)
     {
         var statements = new List<string>();
         var current = new StringBuilder();
-        var inLineComment = false;
-        var inBlockComment = false;
 
         var i = 0;
         while (i < sql.Length)
         {
             var ch = sql[i];
-            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
-
-            if (inLineComment)
-            {
-                current.Append(ch);
-                if (ch == '\n')
-                {
-                    inLineComment = false;
-                }
-
-                i++;
-                continue;
-            }
-
-            if (inBlockComment)
-            {
-                current.Append(ch);
-                if (ch == '*' && next == '/')
-                {
-                    current.Append(next);
-                    i += 2;
-                    inBlockComment = false;
-                    continue;
-                }
-
-                i++;
-                continue;
-            }
-
             if (ch is '\'' or '"' or '`')
             {
                 i = AppendQuotedLiteral(current, sql, i, ch);
                 i++;
-                continue;
             }
-
-            if (ch == '-' && next == '-')
+            else if (ch == '-' && IsLineCommentStart(sql, i))
             {
-                inLineComment = true;
+                i = AppendLineComment(current, sql, i);
+            }
+            else if (ch == '/' && IsBlockCommentStart(sql, i))
+            {
+                i = AppendBlockComment(current, sql, i);
+            }
+            else if (ch == ';')
+            {
+                FlushStatement(statements, current);
+                i++;
+            }
+            else
+            {
                 current.Append(ch);
                 i++;
-                continue;
             }
+        }
 
-            if (ch == '/' && next == '*')
-            {
-                inBlockComment = true;
-                current.Append(ch);
-                i++;
-                continue;
-            }
+        FlushStatement(statements, current);
+        return [.. statements];
+    }
 
-            if (ch == ';')
-            {
-                var statement = current.ToString().Trim();
-                if (statement.Length > 0)
-                {
-                    statements.Add(statement);
-                }
+    private static void FlushStatement(List<string> statements, StringBuilder current)
+    {
+        var statement = current.ToString().Trim();
+        if (statement.Length > 0)
+        {
+            statements.Add(statement);
+        }
 
-                current.Clear();
-                i++;
-                continue;
-            }
+        current.Clear();
+    }
 
-            current.Append(ch);
+    private static bool IsLineCommentStart(string sql, int index) =>
+        index + 1 < sql.Length && sql[index + 1] == '-';
+
+    private static bool IsBlockCommentStart(string sql, int index) =>
+        index + 1 < sql.Length && sql[index + 1] == '*';
+
+    private static int AppendLineComment(StringBuilder builder, string sql, int start)
+    {
+        var i = start;
+        while (i < sql.Length && sql[i] != '\n')
+        {
+            builder.Append(sql[i]);
             i++;
         }
 
-        var last = current.ToString().Trim();
-        if (last.Length > 0)
+        return i;
+    }
+
+    private static int AppendBlockComment(StringBuilder builder, string sql, int start)
+    {
+        var i = start;
+        while (i < sql.Length)
         {
-            statements.Add(last);
+            if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/')
+            {
+                builder.Append('*').Append('/');
+                return i + 2;
+            }
+
+            builder.Append(sql[i]);
+            i++;
         }
 
-        return [.. statements];
+        return i;
+    }
+
+    private static int SkipLineComment(string sql, int start)
+    {
+        var i = start;
+        while (i < sql.Length && sql[i] != '\n')
+        {
+            i++;
+        }
+
+        return i;
+    }
+
+    private static int StripBlockComment(StringBuilder result, string sql, int start)
+    {
+        var i = start + 2;
+        while (i < sql.Length)
+        {
+            if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/')
+            {
+                result.Append(' ');
+                return i + 2;
+            }
+
+            i++;
+        }
+
+        return i;
     }
 
     /// <summary>
@@ -433,64 +457,29 @@ public sealed class ViewerQueryService(
     private static string StripComments(string sql)
     {
         var result = new StringBuilder(sql.Length);
-        var inLineComment = false;
-        var inBlockComment = false;
 
         var i = 0;
         while (i < sql.Length)
         {
             var ch = sql[i];
-            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
-
-            if (inLineComment)
-            {
-                if (ch == '\n')
-                {
-                    inLineComment = false;
-                    result.Append(ch);
-                }
-
-                i++;
-                continue;
-            }
-
-            if (inBlockComment)
-            {
-                if (ch == '*' && next == '/')
-                {
-                    i += 2;
-                    inBlockComment = false;
-                    result.Append(' ');
-                    continue;
-                }
-
-                i++;
-                continue;
-            }
-
             if (ch is '\'' or '"' or '`')
             {
                 i = AppendQuotedLiteral(result, sql, i, ch);
                 i++;
-                continue;
             }
-
-            if (ch == '-' && next == '-')
+            else if (ch == '-' && IsLineCommentStart(sql, i))
             {
-                inLineComment = true;
-                i++;
-                continue;
+                i = SkipLineComment(sql, i);
             }
-
-            if (ch == '/' && next == '*')
+            else if (ch == '/' && IsBlockCommentStart(sql, i))
             {
-                inBlockComment = true;
-                i++;
-                continue;
+                i = StripBlockComment(result, sql, i);
             }
-
-            result.Append(ch);
-            i++;
+            else
+            {
+                result.Append(ch);
+                i++;
+            }
         }
 
         return result.ToString();

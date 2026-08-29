@@ -159,41 +159,50 @@ public static class CsvImportBuilder
 
         for (var i = 0; i < headers.Length; i++)
         {
-            types[i] = "TEXT";
-
-            var allIntegers = true;
-            var allReals = true;
-
-            foreach (var row in rows)
-            {
-                var raw = i < row.Count ? row[i].Trim() : string.Empty;
-                if (string.IsNullOrEmpty(raw))
-                {
-                    continue;
-                }
-
-                if (!long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _))
-                {
-                    allIntegers = false;
-                }
-
-                if (!double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
-                {
-                    allReals = false;
-                }
-            }
-
-            if (allIntegers)
-            {
-                types[i] = "INTEGER";
-            }
-            else if (allReals)
-            {
-                types[i] = "REAL";
-            }
+            types[i] = InferColumnType(rows, i);
         }
 
         return types;
+    }
+
+    /// <summary>
+    /// Infers the storage type of a single column by sampling its values across data rows.
+    /// </summary>
+    private static string InferColumnType(List<List<string>> rows, int columnIndex)
+    {
+        var allIntegers = true;
+        var allReals = true;
+
+        foreach (var row in rows)
+        {
+            var raw = columnIndex < row.Count ? row[columnIndex].Trim() : string.Empty;
+            if (string.IsNullOrEmpty(raw))
+            {
+                continue;
+            }
+
+            if (!long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _))
+            {
+                allIntegers = false;
+            }
+
+            if (!double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+            {
+                allReals = false;
+            }
+        }
+
+        if (allIntegers)
+        {
+            return "INTEGER";
+        }
+
+        if (allReals)
+        {
+            return "REAL";
+        }
+
+        return "TEXT";
     }
 
     /// <summary>

@@ -78,6 +78,7 @@ builder.Services.AddSingleton<IQueryWorkspaceStore, QueryWorkspaceStore>();
 builder.Services.AddSingleton<ISampleDatabaseCatalog, SampleDatabaseCatalog>();
 builder.Services.AddScoped<IViewerConnectionService, ViewerConnectionService>();
 builder.Services.AddScoped<IViewerTransactionService, ViewerTransactionService>();
+builder.Services.AddScoped<ViewerSessionServices>();
 builder.Services.AddScoped<IMetadataService, MetadataService>();
 builder.Services.AddScoped<IViewerQueryService, ViewerQueryService>();
 builder.Services.AddHttpClient();

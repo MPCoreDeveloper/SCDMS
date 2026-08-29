@@ -41,8 +41,8 @@
         'CURRENT_DATE', 'CURRENT_TIMESTAMP'
     ]);
 
-    // NOSONAR(S5843): the tokenizer regex is intentionally comprehensive; splitting it would risk highlighting regressions.
-    const TOKEN_RX = /'[^'\n]*(?:''[^'\n]*)*'|"[^"\n]*(?:""[^"\n]*)*"|\b\d+(?:\.\d+)?\b|\b(?:[A-Za-z_]\w*)\b|--[^\n]*|\/\*[\s\S]*?\*\/|<=|>=|<>|!=|==|=|<|>|\(|\)|,|;|\*|\+|-|\/|%/g;
+    // The tokenizer regex is intentionally comprehensive; splitting it would risk highlighting regressions.
+    const TOKEN_RX = /'[^'\n]*(?:''[^'\n]*)*'|"[^"\n]*(?:""[^"\n]*)*"|\b\d+(?:\.\d+)?\b|\b(?:[A-Za-z_]\w*)\b|--[^\n]*|\/\*[\s\S]*?\*\/|<=|>=|<>|!=|==|=|<|>|\(|\)|,|;|\*|\+|-|\/|%/g; // NOSONAR(S5843)
 
     let mirror = null;
     let editor = null;
