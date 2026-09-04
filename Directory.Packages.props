@@ -3,7 +3,7 @@
     <!-- Central Package Management (CPM): all package versions are declared here. -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- SharpCoreDB packages consumed from NuGet.org. Bump when a newer stable is required. -->
-    <SharpCoreDBVersion>1.9.8</SharpCoreDBVersion>
+    <SharpCoreDBVersion>2.0.0.2</SharpCoreDBVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="SharpCoreDB" Version="$(SharpCoreDBVersion)" />
