@@ -1,4 +1,6 @@
 using System.Net;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using SafeWebCore.Extensions;
 using SharpCoreDB;
 using Scdms.Models;
@@ -19,37 +21,77 @@ if (args.Contains("--check-update", StringComparer.OrdinalIgnoreCase) ||
     return;
 }
 
-// One-time migration of legacy SharpCoreDB.WebViewer user data to the SCDMS folder.
-UserDataMigration.MigrateIfNeeded();
-
 var builder = WebApplication.CreateBuilder(args);
 
 var scdmsOptions = builder.Configuration.GetSection(ScdmsOptions.SectionName).Get<ScdmsOptions>() ?? new ScdmsOptions();
 
+// Container support: apply an optional data-root override (SCDMS__DataDirectory) before any
+// store touches disk, then run the one-time migration of legacy SharpCoreDB.WebViewer data.
+ScdmsPaths.Initialize(scdmsOptions.DataDirectory);
+Directory.CreateDirectory(Path.Combine(ScdmsPaths.RootDirectory, "dataprotection"));
+UserDataMigration.MigrateIfNeeded();
+
 // HTTPS without requiring the .NET SDK: bind Kestrel to a locally generated,
 // self-signed localhost certificate (see Services/LocalhostCertificateProvider.cs).
-var localhostCertificate = LocalhostCertificateProvider.GetOrCreateCertificate();
+// In container deployments (SCDMS__EnableHttps=false) SCDMS serves plain HTTP on
+// HttpPort and a reverse proxy terminates TLS, so no certificate is generated.
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
     if (IPAddress.TryParse(scdmsOptions.BindAddress, out var bindAddress))
     {
-        kestrel.Listen(bindAddress, scdmsOptions.HttpsPort, listen => listen.UseHttps(localhostCertificate));
+        if (scdmsOptions.EnableHttps)
+        {
+            var localhostCertificate = LocalhostCertificateProvider.GetOrCreateCertificate();
+            kestrel.Listen(bindAddress, scdmsOptions.HttpsPort, listen => listen.UseHttps(localhostCertificate));
+        }
+        else
+        {
+            kestrel.Listen(bindAddress, scdmsOptions.HttpPort);
+        }
+    }
+    else if (scdmsOptions.EnableHttps)
+    {
+        var localhostCertificate = LocalhostCertificateProvider.GetOrCreateCertificate();
+        kestrel.ListenLocalhost(scdmsOptions.HttpsPort, listen => listen.UseHttps(localhostCertificate));
     }
     else
     {
-        kestrel.ListenLocalhost(scdmsOptions.HttpsPort, listen => listen.UseHttps(localhostCertificate));
+        kestrel.ListenLocalhost(scdmsOptions.HttpPort);
     }
 });
 
 builder.Services.Configure<ScdmsOptions>(builder.Configuration.GetSection(ScdmsOptions.SectionName));
 builder.Services.AddHttpContextAccessor();
+
+// Persist DataProtection keys (used to protect session cookies) under the SCDMS data root so
+// they survive container restarts when SCDMS__DataDirectory is a mounted volume.
+builder.Services.AddDataProtection()
+    .SetApplicationName("SCDMS")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(ScdmsPaths.RootDirectory, "dataprotection")));
+
+// Reverse-proxy deployments (container + TLS-terminating proxy) need SCDMS to trust
+// X-Forwarded-For/X-Forwarded-Proto so redirects, CSP and scheme checks stay correct.
+// Opt in explicitly with SCDMS__UseForwardedHeaders=true; headers are otherwise ignored.
+if (scdmsOptions.UseForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.Cookie.Name = ".SCDMS.Session";
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    // Desktop mode always serves HTTPS (Secure cookie). In HTTP/container mode the cookie
+    // follows the request scheme, which becomes https when the reverse proxy is trusted
+    // (SCDMS__UseForwardedHeaders=true + X-Forwarded-Proto).
+    options.Cookie.SecurePolicy = scdmsOptions.EnableHttps ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.IdleTimeout = TimeSpan.FromMinutes(20);
 });
@@ -93,10 +135,27 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
+}
+
+// Reverse-proxy deployments: honor X-Forwarded-Proto/X-Forwarded-For so scheme-sensitive
+// middleware (redirects, CSP, HSTS) stays correct when TLS terminates at the proxy.
+if (scdmsOptions.UseForwardedHeaders)
+{
+    app.UseForwardedHeaders();
+}
+
+// HSTS and automatic HTTPS redirection only apply when SCDMS itself serves HTTPS.
+// In container/HTTP mode the reverse proxy terminates TLS and performs the upgrade.
+if (scdmsOptions.EnableHttps && !app.Environment.IsDevelopment())
+{
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (scdmsOptions.EnableHttps)
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseNetSecureHeaders();
 app.UseStaticFiles();
 app.UseRouting();
@@ -110,16 +169,25 @@ app.MapGet("/api/update-check", async (IUpdateCheckService updateCheckService, C
     return Results.Json(result);
 });
 
-// IMPORTANT: create the default "scdb" database on first launch.
-using (var scope = app.Services.CreateScope())
+// Health endpoint used by container HEALTHCHECKs, orchestration (Docker Compose) and
+// .NET Aspire dashboard integration.
+app.MapGet("/health", () => Results.Text("OK"));
+
+// IMPORTANT: create the default "scdb" database on first launch — but only when no default
+// SharpCoreDB server is configured (container/server mode talks to that server over gRPC and
+// has no need for the local scratch database).
+if (!scdmsOptions.HasDefaultServer)
 {
+    using var scope = app.Services.CreateScope();
     var sampleCatalog = scope.ServiceProvider.GetRequiredService<ISampleDatabaseCatalog>();
     await sampleCatalog.EnsureDefaultDatabaseAsync().ConfigureAwait(false);
 }
 
 var endpointDisplay = IPAddress.TryParse(scdmsOptions.BindAddress, out var parsed) ? parsed.ToString() : scdmsOptions.BindAddress;
+var endpointScheme = scdmsOptions.EnableHttps ? "https" : "http";
+var endpointPort = scdmsOptions.EnableHttps ? scdmsOptions.HttpsPort : scdmsOptions.HttpPort;
 Console.WriteLine($"SCDMS {ScdmsVersion.Display} — Sharp Core Database Management System");
-Console.WriteLine($"Listening on https://{endpointDisplay}:{scdmsOptions.HttpsPort}");
+Console.WriteLine($"Listening on {endpointScheme}://{endpointDisplay}:{endpointPort}");
 
 await app.RunAsync().ConfigureAwait(false);
 

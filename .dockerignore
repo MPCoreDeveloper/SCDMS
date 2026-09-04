@@ -1,0 +1,17 @@
+# Build context exclusions for the SCDMS container image
+.git
+.gitattributes
+.gitignore
+.github
+.vs
+.vscode
+**/bin
+**/obj
+publish
+dist
+docs
+install
+scripts
+TestResults
+*.md
+*.user

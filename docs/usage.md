@@ -47,6 +47,42 @@ You need it when reconnecting manually (recent connection profiles intentionally
 - `DefaultDatabasePath` overrides the storage folder of the default database.
 - `SampleDatabasesDirectory` overrides the root folder for all built-in databases.
 
+## Container deployment (Docker) & environment variables
+
+SCDMS can run as a container. In container mode SCDMS serves **plain HTTP** (default port `8080`) and a reverse proxy terminates TLS, and SCDMS connects to a SharpCoreDB server **over gRPC** (its server connection mode uses `SharpCoreDB.Client`/gRPC exclusively; the HTTPS management API of the server is not used for data traffic).
+
+All settings are configured through environment variables using the `SCDMS__` prefix (the `SCDMS` configuration section). Examples: `SCDMS__EnableHttps=false`, `SCDMS__DefaultServerHost=scdb.example.com`.
+
+| Environment variable | Default | Description |
+|---|---|---|
+| `SCDMS__EnableHttps` | `true` | Desktop mode: serve HTTPS with the generated self-signed localhost certificate. Set `false` in containers; a reverse proxy terminates TLS. |
+| `SCDMS__HttpsPort` | `5443` | Port used when `EnableHttps=true`. |
+| `SCDMS__HttpPort` | `8080` | Port used when `EnableHttps=false` (container/HTTP mode). |
+| `SCDMS__BindAddress` | `localhost` | Interface to bind. Use `0.0.0.0` in containers. |
+| `SCDMS__UseForwardedHeaders` | `false` | Honor `X-Forwarded-Proto`/`X-Forwarded-For`. Enable only behind a trusted reverse proxy. |
+| `SCDMS__DataDirectory` | *(OS default)* | Overrides the SCDMS data root (settings, saved queries/history, built-in databases, certificates). Mount a volume here in containers. |
+| `SCDMS__DefaultServerHost` | *(empty)* | SharpCoreDB gRPC server host to prefill/auto-connect to. When set, SCDMS skips creating the local `scdb` scratch database. |
+| `SCDMS__DefaultServerPort` | `5001` | gRPC port. Use `443` when the gRPC endpoint is fronted by a TLS-terminating reverse proxy. |
+| `SCDMS__DefaultServerDatabase` | `master` | Database name for the default server connection. |
+| `SCDMS__DefaultServerUsername` | `anonymous` | Username for the default server connection. |
+| `SCDMS__DefaultServerPassword` | *(empty)* | Password for the default server connection. |
+| `SCDMS__DefaultServerUseSsl` | `true` | TLS for the gRPC channel. Keep `true`; disable only on trusted plaintext networks. |
+| `SCDMS__DefaultServerPreferHttp3` | `true` | Prefer HTTP/3 (QUIC) when the server supports it. |
+| `SCDMS__DefaultServerAutoConnect` | `false` | Auto-connect to the default server when the UI opens. |
+
+### Reverse proxy & gRPC TLS
+
+The SharpCoreDB server exposes gRPC over **TLS only** (`Server__Security__TlsEnabled`). Recommended deployment: put a reverse proxy (Caddy/nginx) in front that holds a **publicly trusted** certificate (Let's Encrypt) for the gRPC hostname and the SCDMS hostname:
+
+- Browser → `https://scdms.example.com` → SCDMS (`http://scdms:8080`)
+- SCDMS → `https://scdb.example.com:443` (gRPC) → SharpCoreDB server gRPC (`:5001`)
+
+SCDMS validates the public certificate, so no custom CA or certificate-skip logic is needed. A complete, runnable sample (SCDMS + SharpCoreDB server + Caddy) is in [`samples/docker/`](../samples/docker/).
+
+### Persistence
+
+Mount a volume at the `SCDMS__DataDirectory` location (`/app/data` in the official image) to persist settings, saved queries/history and built-in databases across container restarts.
+
 ## Security posture
 
 SCDMS is configured secure-by-default:
@@ -146,6 +182,8 @@ Files:
 
 - `settings.json` (recent connections)
 - `query-workspace.json` (saved queries and history)
+
+In container deployments the root is overridden with `SCDMS__DataDirectory` (see the environment-variable table above).
 
 ## Build and run
 

@@ -71,6 +71,29 @@ Dev launchers: `scripts/launch.ps1` (Windows), `scripts/launch.sh` (Linux/macOS)
 
 1. Tag: `git tag v1.0.0 && git push origin v1.0.0`
 2. The [release workflow](.github/workflows/release.yml) publishes self-contained single-file binaries for `win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64` plus `SHA256SUMS.txt` to GitHub Releases.
+3. The [Docker workflow](.github/workflows/docker-publish.yml) builds the container image (`ghcr.io/mpcoredeveloper/scdms`) for `linux/amd64` + `linux/arm64`.
+
+## Docker & gRPC deployments
+
+SCDMS is container-ready and talks to SharpCoreDB **exclusively over gRPC** in server mode.
+
+**Container defaults:** plain HTTP on `:8080`, bind `0.0.0.0`, data in `/app/data` — TLS is terminated by a reverse proxy that holds a publicly trusted certificate (e.g. Caddy + Let's Encrypt). The SCDMS gRPC client connects to the server through that proxy and validates the public certificate.
+
+```bash
+docker build -t ghcr.io/mpcoredeveloper/scdms:local .
+
+# container-mode smoke run (no TLS, bind all interfaces):
+docker run --rm -p 8080:8080 \
+  -e SCDMS__EnableHttps=false \
+  -e SCDMS__BindAddress=0.0.0.0 \
+  -e SCDMS__DataDirectory=/app/data \
+  -e SCDMS__DefaultServerHost=scdb.example.com \
+  -e SCDMS__DefaultServerPort=443 \
+  -e SCDMS__DefaultServerAutoConnect=true \
+  ghcr.io/mpcoredeveloper/scdms:local
+```
+
+A full example (SCDMS + SharpCoreDB server + Caddy reverse proxy with Let's Encrypt) lives in [`samples/docker/`](samples/docker/). Configuration reference for container deployments (env variables, HTTP mode, default gRPC server, data volumes) is in [docs/usage.md](docs/usage.md).
 
 ## Documentation
 

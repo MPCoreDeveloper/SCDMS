@@ -1,0 +1,26 @@
+# Caddy reverse proxy for the SCDMS + SharpCoreDB sample.
+#
+# - {$SCDMS_DOMAIN}: SCDMS web UI. Caddy terminates TLS (automatic Let's Encrypt) and
+#   proxies to the plain-HTTP SCDMS container. X-Forwarded-* headers are set automatically
+#   (SCDMS has SCDMS__UseForwardedHeaders=true).
+# - {$GRPC_DOMAIN}: SharpCoreDB gRPC endpoint. Caddy terminates TLS with the same public
+#   certificate and re-encrypts to the SharpCoreDB server's internal TLS certificate
+#   (tls_insecure_skip_verify: the server cert only needs to be valid for the container
+#   network, SCDMS validates the *public* Caddy certificate).
+
+{
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+{$SCDMS_DOMAIN:scdms.example.com} {
+	encode zstd gzip
+	reverse_proxy scdms:8080
+}
+
+{$GRPC_DOMAIN:scdb.example.com} {
+	reverse_proxy https://sharpcoredb:5001 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}

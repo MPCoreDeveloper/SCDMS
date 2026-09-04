@@ -111,7 +111,9 @@ public sealed class IndexModel(
                 _ => _options.BindAddress
             };
 
-            return $"https://{displayAddress}:{_options.HttpsPort}";
+            var scheme = _options.EnableHttps ? "https" : "http";
+            var port = _options.EnableHttps ? _options.HttpsPort : _options.HttpPort;
+            return $"{scheme}://{displayAddress}:{port}";
         }
     }
 
@@ -155,11 +157,23 @@ public sealed class IndexModel(
     {
         await LoadPageStateAsync(HttpContext.RequestAborted).ConfigureAwait(false);
 
-        // SSMS-like behavior: automatically connect to the default "scdb" database,
-        // unless the user explicitly disconnected earlier in this browser session.
+        // SSMS-like behavior: automatically connect to the configured default — the local
+        // "scdb" database on desktop, or the configured SharpCoreDB gRPC server in
+        // container/server deployments — unless the user explicitly disconnected earlier in
+        // this browser session.
         if (!IsConnected && !WasUserDisconnected)
         {
-            await ConnectToDefaultDatabaseAsync(HttpContext.RequestAborted).ConfigureAwait(false);
+            if (_options.HasDefaultServer)
+            {
+                if (_options.DefaultServerAutoConnect)
+                {
+                    await ConnectToDefaultServerAsync(HttpContext.RequestAborted).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                await ConnectToDefaultDatabaseAsync(HttpContext.RequestAborted).ConfigureAwait(false);
+            }
         }
     }
 
@@ -855,7 +869,7 @@ public sealed class IndexModel(
         {
             if (!preserveFormValues)
             {
-                Connection = CreateDefaultConnection();
+                Connection = CreateInitialConnection();
                 Query = CreateDefaultQuery();
                 ImportWorkspaceJson = string.Empty;
             }
@@ -1156,6 +1170,63 @@ public sealed class IndexModel(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            ErrorMessage ??= ex.Message;
+            await LoadPageStateAsync(cancellationToken, preserveFormValues: true).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Builds the initial connection-form state: when a default SharpCoreDB server is
+    /// configured (container/server deployment) the server fields are prefilled; otherwise
+    /// the desktop default (local database) is used.
+    /// </summary>
+    private ConnectionRequest CreateInitialConnection() =>
+        _options.HasDefaultServer ? CreateDefaultServerConnection() : CreateDefaultConnection();
+
+    /// <summary>
+    /// Builds a connection request for the configured default SharpCoreDB gRPC server
+    /// (SCDMS__DefaultServer*).
+    /// </summary>
+    private ConnectionRequest CreateDefaultServerConnection() => new()
+    {
+        Name = $"{_options.DefaultServerHost}:{_options.DefaultServerPort}/{_options.DefaultServerDatabase}",
+        ConnectionMode = ViewerConnectionMode.Server,
+        ServerHost = _options.DefaultServerHost,
+        ServerPort = _options.DefaultServerPort,
+        ServerUseSsl = _options.DefaultServerUseSsl,
+        ServerPreferHttp3 = _options.DefaultServerPreferHttp3,
+        ServerDatabase = _options.DefaultServerDatabase,
+        ServerUsername = _options.DefaultServerUsername,
+        Password = _options.DefaultServerPassword
+    };
+
+    /// <summary>
+    /// Connects the current browser session to the configured default SharpCoreDB server
+    /// (used in container/server deployments with SCDMS__DefaultServerAutoConnect=true).
+    /// </summary>
+    private async Task ConnectToDefaultServerAsync(CancellationToken cancellationToken)
+    {
+        if (!_options.HasDefaultServer)
+        {
+            return;
+        }
+
+        try
+        {
+            Connection = CreateDefaultServerConnection();
+
+            await _transactionService.ClearAsync(cancellationToken).ConfigureAwait(false);
+            var session = await _viewerConnectionService.ConnectAsync(Connection, cancellationToken).ConfigureAwait(false);
+            await SaveRecentConnectionAsync(session, cancellationToken).ConfigureAwait(false);
+            ClearUserDisconnectedFlag();
+            Query = CreateDefaultQuery();
+            StatusMessage = $"Connected to the default server '{session.DisplayTarget}'.";
+            await LoadPageStateAsync(cancellationToken, preserveFormValues: true).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Keep the connection form prefilled so the user can retry or adjust the details.
+            Connection = CreateDefaultServerConnection();
             ErrorMessage ??= ex.Message;
             await LoadPageStateAsync(cancellationToken, preserveFormValues: true).ConfigureAwait(false);
         }

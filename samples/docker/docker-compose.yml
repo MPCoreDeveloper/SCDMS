@@ -1,0 +1,95 @@
+# SCDMS + SharpCoreDB Server — production-style Docker Compose sample.
+#
+# Topology:
+#   Browser ──HTTPS (Let's Encrypt)──► Caddy ──HTTP──► scdms:8080     (SCDMS web UI)
+#   SCDMS   ──gRPC (https://<GRPC_HOST>)──► Caddy ──gRPC/TLS──► sharpcoredb:5001
+#
+# All SCDMS ⇄ SharpCoreDB data traffic flows over gRPC. TLS is terminated by Caddy
+# with a publicly trusted (Let's Encrypt) certificate; the browser and the SCDMS gRPC
+# client validate against that public certificate.
+#
+# Usage:
+#   cp .env.example .env        # edit domain names + credentials
+#   docker compose up -d
+#
+# Prerequisites:
+#   - Published images ghcr.io/mpcoredeveloper/scdms and
+#     ghcr.io/mpcoredeveloper/sharpcoredb-server. Until they are published you can
+#     build them locally (see the commented `build:` blocks below).
+
+services:
+  caddy:
+    image: caddy:2.9
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SCDMS_DOMAIN=${SCDMS_DOMAIN:-scdms.example.com}
+      - GRPC_DOMAIN=${GRPC_DOMAIN:-scdb.example.com}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  scdms:
+    image: ghcr.io/mpcoredeveloper/scdms:latest
+    # Until the image is published you can build it locally from this repository:
+    #   build:
+    #     context: ../..
+    #     dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - SCDMS__EnableHttps=false
+      - SCDMS__BindAddress=0.0.0.0
+      - SCDMS__DataDirectory=/app/data
+      - SCDMS__UseForwardedHeaders=true
+      # Default gRPC server, reached through the TLS-terminating proxy (public cert):
+      - SCDMS__DefaultServerHost=${GRPC_DOMAIN:-scdb.example.com}
+      - SCDMS__DefaultServerPort=443
+      - SCDMS__DefaultServerDatabase=master
+      - SCDMS__DefaultServerUsername=${SDB_USERNAME:-anonymous}
+      - SCDMS__DefaultServerPassword=${SDB_PASSWORD:-}
+      - SCDMS__DefaultServerUseSsl=true
+      - SCDMS__DefaultServerAutoConnect=true
+      # Optional: disable the in-app update check inside a container
+      - SCDMS__UpdateCheckEnabled=false
+    volumes:
+      - scdms-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  sharpcoredb:
+    image: ghcr.io/mpcoredeveloper/sharpcoredb-server:latest
+    # Until the image is published, build it from a local SharpCoreDB checkout:
+    #   build:
+    #     context: /path/to/SharpCoreDB
+    #     dockerfile: src/SharpCoreDB.Server/Dockerfile
+    restart: unless-stopped
+    environment:
+      # The SharpCoreDB server requires a TLS certificate. Mount it read-only below and
+      # reference the path inside the container (e.g. /app/certs/server.pfx).
+      - Server__Security__TlsCertificatePath=${SERVER_TLS_CERT_PATH:-/app/certs/server.pfx}
+      - Server__Security__JwtSecretKey=${SERVER_JWT_SECRET:-change-me-to-a-random-32-char-secret!}
+      - Server__SystemDatabases__Enabled=true
+    volumes:
+      - sharpcoredb-data:/app/data
+      - ./server-certs:/app/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsk", "https://localhost:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  scdms-data:
+  sharpcoredb-data:
+  caddy-data:
+  caddy-config:
+
