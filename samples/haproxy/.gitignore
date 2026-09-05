@@ -1,0 +1,4 @@
+# Runtime state for the ACME variant (certificates, webroot tokens, certbot account state).
+# Never commit these.
+acme-state/
+server-certs/

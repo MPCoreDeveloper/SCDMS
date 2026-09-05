@@ -1,0 +1,9 @@
+# Build context exclusions for the YARP proxy sample image
+.git
+.github
+**/bin
+**/obj
+*.md
+*.user
+.dockerignore
+Dockerfile

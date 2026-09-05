@@ -23,11 +23,11 @@ to the server's internal certificate, so no custom CA is needed inside SCDMS.
 
 The compose file references published images by default:
 
-- `ghcr.io/mpcoredeveloper/scdms:latest`
-- `ghcr.io/mpcoredeveloper/sharpcoredb-server:latest`
+- `ghcr.io/mpcoredeveloper/scdms:latest` — built by the `docker-publish.yml` workflow on every
+  `v*` tag. Until it is published, build it locally (see below).
+- `ghcr.io/mpcoredeveloper/sharpcoredb-server:latest` — **published** (built on every `v*` tag).
 
-Until those images are published (the `docker-publish.yml` workflow builds SCDMS on a
-`v*` tag), build them locally by uncommenting the `build:` blocks in `docker-compose.yml`:
+To build the SCDMS image locally, uncomment the SCDMS `build:` block in `docker-compose.yml`:
 
 ```yaml
 # for scdms
@@ -35,7 +35,7 @@ build:
   context: ../..
   dockerfile: Dockerfile
 
-# for sharpcoredb
+# for sharpcoredb (optional: only needed when you want to build the server image yourself)
 build:
   context: /path/to/SharpCoreDB
   dockerfile: src/SharpCoreDB.Server/Dockerfile

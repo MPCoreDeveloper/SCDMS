@@ -9,7 +9,15 @@
     <PackageVersion Include="SharpCoreDB" Version="$(SharpCoreDBVersion)" />
     <PackageVersion Include="SharpCoreDB.Data.Provider" Version="$(SharpCoreDBVersion)" />
     <PackageVersion Include="SharpCoreDB.Client" Version="$(SharpCoreDBVersion)" />
+    <!-- Aspire hosting integration for the SharpCoreDB server container (same release train). -->
+    <PackageVersion Include="SharpCoreDB.Aspire.Hosting" Version="$(SharpCoreDBVersion)" />
     <PackageVersion Include="SafeWebCore" Version="1.7.0" />
     <PackageVersion Include="SharpDispatch" Version="1.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- .NET Aspire hosting (src/SCDMS.Aspire.Hosting + examples/Aspire). Version must match the
+         Aspire.Hosting dependency of SharpCoreDB.Aspire.Hosting (13.5.3). -->
+    <PackageVersion Include="Aspire.Hosting" Version="13.5.3" />
   </ItemGroup>
 </Project>

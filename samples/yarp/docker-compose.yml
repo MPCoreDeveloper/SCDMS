@@ -1,16 +1,16 @@
-# SCDMS + SharpCoreDB Server — production-style Docker Compose sample.
+# SCDMS + SharpCoreDB Server + YARP — all-.NET reverse proxy sample.
 #
-# Topology:
-#   Browser ──HTTPS (Let's Encrypt)──► Caddy ──HTTP──► scdms:8080     (SCDMS web UI)
-#   SCDMS   ──gRPC (https://<GRPC_HOST>)──► Caddy ──gRPC/TLS──► sharpcoredb:5001
+# Topology (identical wiring to samples/docker, but with a YARP proxy instead of Caddy):
+#   Browser ──HTTPS (cert on YARP)──► yarp ──HTTP──► scdms:8080          (SCDMS web UI)
+#   SCDMS   ──gRPC https://<GRPC_HOST>──► yarp ──gRPC/TLS──► sharpcoredb:5001
 #
-# All SCDMS ⇄ SharpCoreDB data traffic flows over gRPC. TLS is terminated by Caddy
-# with a publicly trusted (Let's Encrypt) certificate; the browser and the SCDMS gRPC
-# client validate against that public certificate.
+# All SCDMS ⇄ SharpCoreDB data traffic flows over gRPC. YARP does NOT provision TLS
+# certificates automatically (unlike Caddy): mount a PFX that covers the proxy hostnames
+# (dev: localhost; prod: your public certificate).
 #
 # Usage:
 #   cp .env.example .env        # edit domain names + credentials
-#   docker compose up -d
+#   docker compose up -d --build  # builds the yarp proxy image locally
 #
 # Prerequisites:
 #   - Published image ghcr.io/mpcoredeveloper/sharpcoredb-server (available).
@@ -18,24 +18,36 @@
 #     locally by uncommenting the scdms `build:` block below.
 
 services:
-  caddy:
-    image: caddy:2.9
+  yarp:
+    build: ./proxy
+    image: yarp-proxy:local
     restart: unless-stopped
+    # The container runs as a non-root user; binding 80/443 needs this capability.
+    cap_add:
+      - NET_BIND_SERVICE
     ports:
       - "80:80"
       - "443:443"
     environment:
       - SCDMS_DOMAIN=${SCDMS_DOMAIN:-scdms.example.com}
       - GRPC_DOMAIN=${GRPC_DOMAIN:-scdb.example.com}
-      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+      - YARP_TLS_CERT_PATH=${YARP_TLS_CERT_PATH:-/certs/server.pfx}
+      - YARP_TLS_CERT_PASSWORD=${YARP_TLS_CERT_PASSWORD:-devonly}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./server-certs:/certs:ro
+    depends_on:
+      - scdms
+      - sharpcoredb
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   scdms:
     image: ghcr.io/mpcoredeveloper/scdms:latest
-    # Until the image is published you can build it locally from this repository:
+    # Until the official image is published you can build it locally from this repository:
     #   build:
     #     context: ../..
     #     dockerfile: Dockerfile
@@ -45,7 +57,7 @@ services:
       - SCDMS__BindAddress=0.0.0.0
       - SCDMS__DataDirectory=/app/data
       - SCDMS__UseForwardedHeaders=true
-      # Default gRPC server, reached through the TLS-terminating proxy (public cert):
+      # Default gRPC server, reached through the YARP proxy (public cert on the proxy):
       - SCDMS__DefaultServerHost=${GRPC_DOMAIN:-scdb.example.com}
       - SCDMS__DefaultServerPort=443
       - SCDMS__DefaultServerDatabase=master
@@ -73,8 +85,6 @@ services:
     #     dockerfile: src/SharpCoreDB.Server/Dockerfile
     restart: unless-stopped
     environment:
-      # The SharpCoreDB server requires a TLS certificate. Mount it read-only below and
-      # reference the path inside the container (e.g. /app/certs/server.pfx).
       - Server__Security__TlsCertificatePath=${SERVER_TLS_CERT_PATH:-/app/certs/server.pfx}
       - Server__Security__JwtSecretKey=${SERVER_JWT_SECRET:-change-me-to-a-random-32-char-secret!}
       - Server__SystemDatabases__Enabled=true
@@ -91,6 +101,3 @@ services:
 volumes:
   scdms-data:
   sharpcoredb-data:
-  caddy-data:
-  caddy-config:
-

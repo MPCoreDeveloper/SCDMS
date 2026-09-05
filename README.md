@@ -72,6 +72,7 @@ Dev launchers: `scripts/launch.ps1` (Windows), `scripts/launch.sh` (Linux/macOS)
 1. Tag: `git tag v1.0.0 && git push origin v1.0.0`
 2. The [release workflow](.github/workflows/release.yml) publishes self-contained single-file binaries for `win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64` plus `SHA256SUMS.txt` to GitHub Releases.
 3. The [Docker workflow](.github/workflows/docker-publish.yml) builds the container image (`ghcr.io/mpcoredeveloper/scdms`) for `linux/amd64` + `linux/arm64`.
+4. The [NuGet workflow](.github/workflows/nuget-publish.yml) packs `SCDMS.Aspire.Hosting` and publishes it to NuGet.org.
 
 ## Docker & gRPC deployments
 
@@ -93,11 +94,25 @@ docker run --rm -p 8080:8080 \
   ghcr.io/mpcoredeveloper/scdms:local
 ```
 
-A full example (SCDMS + SharpCoreDB server + Caddy reverse proxy with Let's Encrypt) lives in [`samples/docker/`](samples/docker/). Configuration reference for container deployments (env variables, HTTP mode, default gRPC server, data volumes) is in [docs/usage.md](docs/usage.md).
+A full example (SCDMS + SharpCoreDB server + Caddy reverse proxy with Let's Encrypt) lives in [`samples/docker/`](samples/docker/). Drop-in proxy alternatives with the same topology are [`samples/yarp/`](samples/yarp/) (all-.NET) and [`samples/haproxy/`](samples/haproxy/) (industry-standard HAProxy). Configuration reference for container deployments (env variables, HTTP mode, default gRPC server, data volumes) is in [docs/usage.md](docs/usage.md).
+
+## .NET Aspire
+
+SCDMS ships a `SCDMS.Aspire.Hosting` NuGet package (plus a runnable [AppHost example](examples/Aspire/SCDMS.AppHost/)) that runs SharpCoreDB server + SCDMS as one Aspire application — like pgweb/pgAdmin next to PostgreSQL:
+
+```csharp
+var db = builder.AddSharpCoreDB("db").WithServerContainer(); // SharpCoreDB server container
+builder.AddSCDMS("admin", db);                               // SCDMS container auto-wired over gRPC
+```
+
+Requires the published images `ghcr.io/mpcoredeveloper/sharpcoredb-server` (published) and `ghcr.io/mpcoredeveloper/scdms` (built on `v*` tags; until then `docker build -t ghcr.io/mpcoredeveloper/scdms:latest .`). See [docs/aspire.md](docs/aspire.md) for the design, status and the TLS notes. A step-by-step run & test guide for **both** options (Compose and Aspire) is in [docs/container-and-aspire-guide.md](docs/container-and-aspire-guide.md).
 
 ## Documentation
 
+- [Run & test guide — Docker Compose + .NET Aspire](docs/container-and-aspire-guide.md)
+
 - [Usage & configuration](docs/usage.md)
+- [.NET Aspire integration (design & status)](docs/aspire.md)
 - [Standalone/migration plan](https://github.com/MPCoreDeveloper/SharpCoreDB/blob/master/docs/viewer/scdms-standalone-plan.md) (in the SharpCoreDB repo)
 - [SharpCoreDB documentation](https://github.com/MPCoreDeveloper/SharpCoreDB)
 
