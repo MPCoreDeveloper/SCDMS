@@ -26,9 +26,11 @@ jobs:
       id: meta
       run: |
         $version = if ("${{ github.ref_type }}" -eq 'tag') { "${{ github.ref_name }}".TrimStart('v') } else { "${{ github.sha }}".Substring(0, 7) }
-        $tags = @("ghcr.io/${{ github.repository }}:v$version")
+        # GHCR repository names must be lowercase; github.repository keeps the owner case.
+        $imageName = "${{ github.repository }}".ToLowerInvariant()
+        $tags = @("ghcr.io/$imageName:v$version")
         if ("${{ github.ref_type }}" -eq 'tag') {
-          $tags += "ghcr.io/${{ github.repository }}:latest"
+          $tags += "ghcr.io/$imageName:latest"
         }
         Write-Host "Version: $version"
         Write-Host "Tags: $($tags -join ', ')"

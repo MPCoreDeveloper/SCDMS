@@ -4,6 +4,10 @@ on:
   push:
     tags: [ 'v*' ]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.1.0). Defaults to the tag (or 1.0.0.0 on manual runs).'
+        required: false
 
 permissions:
   contents: read
@@ -34,7 +38,10 @@ jobs:
       shell: pwsh
       id: version
       run: |
-        $version = if ("${{ github.ref_type }}" -eq 'tag') { "${{ github.ref_name }}".TrimStart('v') } else { "1.0.0.0" }
+        $inputVersion = "${{ github.event.inputs.version }}".Trim()
+        $version = if ($inputVersion) { $inputVersion.TrimStart('v') }
+                   elseif ("${{ github.ref_type }}" -eq 'tag') { "${{ github.ref_name }}".TrimStart('v') }
+                   else { "1.0.0.0" }
         Write-Host "Version: $version"
         "value=$version" >> $env:GITHUB_OUTPUT
 
