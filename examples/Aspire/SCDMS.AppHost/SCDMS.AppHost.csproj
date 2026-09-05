@@ -1,0 +1,39 @@
+<Project>
+  <!-- Aspire SDK requires special handling: disable repo-wide CPM for this project only
+       (Aspire implicit packages carry inline versions). See src/SharpCoreDB.AppHost in the
+       SharpCoreDB repository for the same pattern. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.3" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectCapability Include="Aspire" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Inline version: central package management is disabled for this project. -->
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.5.3" />
+    <!-- IsAspireProjectResource=false: the hosting package is a plain compile-time library
+         reference, not an Aspire project resource (only executables are project resources). -->
+    <ProjectReference Include="..\..\..\src\SCDMS.Aspire.Hosting\SCDMS.Aspire.Hosting.csproj"
+                      IsAspireProjectResource="false" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- The example runs with the classic integrated dashboard (DCP), not the separate Aspire
+         CLI bundle; suppress the informational ASPIRE010 warning. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+</Project>

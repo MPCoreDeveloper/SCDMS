@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <AssemblyName>SCDMS.Aspire.Hosting</AssemblyName>
+    <RootNamespace>Scdms.Aspire.Hosting</RootNamespace>
+    <Description>.NET Aspire hosting integration for the SCDMS web studio - registers the SCDMS container and links it to a SharpCoreDB server container over gRPC</Description>
+
+    <!-- NuGet Package Properties (version is inherited from Directory.Build.props and
+         overridden from the git tag at release time). -->
+    <PackageId>SCDMS.Aspire.Hosting</PackageId>
+    <Authors>MPCoreDeveloper</Authors>
+    <PackageTags>database;aspire;hosting;container;sharpcoredb;scdms;net10</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/MPCoreDeveloper/SCDMS</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MPCoreDeveloper/SCDMS</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>NuGet.README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+    <PackageReference Include="SharpCoreDB.Aspire.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="NuGet.README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

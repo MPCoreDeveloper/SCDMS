@@ -1,8 +1,9 @@
 # .NET Aspire integration (issue #10)
 
-> **Status: design doc.** Fase 4 van de container/gRPC roadmap. Implementatie vereist eerst
-> twee zaken in de **SharpCoreDB**-repo (zie "Prerequisites"), daarna kan dit repo een
-> `SCDMS.Aspire.Hosting`-pakket toevoegen.
+> **Status: geïmplementeerd (2026-09-05).** Fase 4 van de container/gRPC-roadmap is afgerond:
+> beide SharpCoreDB-prerequisites (server-image + `SharpCoreDB.Aspire.Hosting`) zijn gepubliceerd,
+> en dit repo levert nu het `SCDMS.Aspire.Hosting`-pakket, een voorbeeld-AppHost, een
+> NuGet-publish-workflow en documentatie.
 
 ## Goal
 
@@ -14,111 +15,77 @@ var builder = DistributedApplication.CreateBuilder(args);
 var sharpCoreDb = builder.AddSharpCoreDB("db")
                          .WithServerContainer();      // SharpCoreDB server container
 
-builder.AddSCDMS("admin")
-       .WithGrpcReference(sharpCoreDb)                 // SCDMS container linked via gRPC
-       .WithHttpEndpoint(port: 8080, name: "http");
+// SCDMS web studio, gekoppeld aan de server over gRPC. AddSCDMS registreert meteen het
+// HTTP-endpoint (containerpoort 8080) en de SCDMS__* container-voorwaarden.
+var scdms = builder.AddSCDMS("admin", sharpCoreDb);
 
 builder.Build().Run();
 ```
 
-Al het SCDMS ⇄ SharpCoreDB-dataverkeer loopt over **gRPC**.
+Al het SCDMS ⇄ SharpCoreDB-dataverkeer loopt over **gRPC**. Browser-URL in de AppHost:
+`scdms.GetEndpoint("http")`.
 
-## Prerequisites (SharpCoreDB repo — volgorde)
+## Prerequisites (SharpCoreDB-repo) — klaar
 
-1. **Server-image publiceren** naar `ghcr.io/mpcoredeveloper/sharpcoredb-server`
-   (de `Dockerfile` in `src/SharpCoreDB.Server/` bestaat al; voeg een
-   `docker/build-push-action`-workflow toe op `v*`-tags, `linux/amd64`+`linux/arm64`).
-2. **`SharpCoreDB.Aspire.Hosting`-pakket** publiceren met:
+1. ✅ **Server-image gepubliceerd** → `ghcr.io/mpcoredeveloper/sharpcoredb-server`
+   (`linux/amd64` + `linux/arm64`, getagd op elke `v*`-tag).
+2. ✅ **`SharpCoreDB.Aspire.Hosting`-pakket gepubliceerd** → versie `2.0.0.2`
+   (dependency: `Aspire.Hosting` 13.5.3, net10.0).
 
-```csharp
-// SharpCoreDB.Aspire.Hosting / SharpCoreDbServerResource.cs
-public sealed class SharpCoreDbServerResource(string name)
-    : ContainerResource(name), IResourceWithConnectionString
-{
-    public string? JwtSecretKey { get; set; }
-    // ReferenceExpression voor de gRPC-connection string ("Host=...;Port=...;SSL=true")
-}
+Publieke API die dit repo gebruikt:
+
+| Lid | Betekenis |
+|---|---|
+| `AddSharpCoreDB(name, imageTag = null, grpcPort = null, httpsApiPort = null)` | Registreert de servercontainer |
+| `.WithServerContainer()` | Documentatie-alias voor container-hosting |
+| `.WithImageTag(...)` | Image-tag pinnen |
+| `.WithJwtSecret(secret)` | Zet `Server__Security__JwtSecretKey` (min. 32 tekens) |
+| `SharpCoreDbServerResource.GrpcEndpointName` (= `"grpc"`) | HTTPS-gRPC-endpoint, containerpoort 5001 |
+| `SharpCoreDbServerResource.HttpsApiEndpointName` (= `"https"`) | HTTPS REST API, containerpoort 8443 |
+
+Referentie (SharpCoreDB-kant): [`docs/server/ASPIRE_INTEGRATION.md`](https://github.com/MPCoreDeveloper/SharpCoreDB/blob/master/docs/server/ASPIRE_INTEGRATION.md)
+
+## Implementatie in dit repo (SCDMS)
+
+### `src/SCDMS.Aspire.Hosting` → NuGet: `SCDMS.Aspire.Hosting`
+
+- **`ScdmsResource`** (`SCDMSResource.cs`) — `ContainerResource` + `IResourceWithConnectionString`
+  (web-URL als connection string). Endpoint-naam `http`, containerpoort 8080.
+- **`ScdmsAspireExtensions`** (`ScdmsAspireExtensions.cs`):
+  - `AddSCDMS(builder, name, sharpCoreDb = null, imageTag = null, port = null)` — registreert de
+    SCDMS-container op `ghcr.io/mpcoredeveloper/scdms` met de container-voorwaarden
+    (`SCDMS__EnableHttps=false`, `SCDMS__BindAddress=0.0.0.0`, `SCDMS__DataDirectory=/app/data`,
+    update-check uit). Wordt `sharpCoreDb` meegegeven, dan volgt automatisch `WithGrpcReference`.
+  - `WithGrpcReference(scdms, sharpCoreDb)` — koppelt het `grpc`-endpoint van de server via
+    `SCDMS__DefaultServerHost` / `SCDMS__DefaultServerPort`, zet `SCDMS__DefaultServerUseSsl=true`
+    en `SCDMS__DefaultServerAutoConnect=true`.
+
+### Voorbeeld-AppHost: `examples/Aspire/SCDMS.AppHost`
+
+Volledig draaibaar voorbeeld. Starten:
+
+```bash
+dotnet run --project examples/Aspire/SCDMS.AppHost/SCDMS.AppHost.csproj
 ```
 
-```csharp
-public static class SharpCoreDbAspireExtensions
-{
-    // Container-gebaseerd (gepubliceerde image)
-    public static IResourceBuilder<SharpCoreDbServerResource> AddSharpCoreDB(
-        this IDistributedApplicationBuilder builder, string name) =>
-        builder.AddResource(new SharpCoreDbServerResource(name))
-               .WithImage("ghcr.io/mpcoredeveloper/sharpcoredb-server")
-               .WithImageTag("latest")
-               .WithHttpEndpoint(port: 5001, name: "grpc");
+Lees `examples/Aspire/SCDMS.AppHost/README.md` voor de lokale-dev-/TLS-opmerkingen.
 
-    // Convenience-alias voor het issue-snippet
-    public static IResourceBuilder<SharpCoreDbServerResource> WithServerContainer(
-        this IResourceBuilder<SharpCoreDbServerResource> resource) => resource;
-}
-```
+### CI/CD
 
-## SCDMS-repo implementatie (zodra prerequisites klaar zijn)
-
-### Nieuw project `src/SCDMS.Aspire.Hosting/SCDMS.Aspire.Hosting.csproj`
-
-- `TargetFramework: net10.0`
-- PackageReference: `Aspire.Hosting` (zelfde versie als SharpCoreDB.AppHost gebruikt,
-  i.c. 13.x) + project/package-ref naar `SharpCoreDB.Aspire.Hosting`.
-- `SCDMSResource : ContainerResource, IResourceWithConnectionString` (web-URL als
-  connection string).
-
-### `SCDMSAspireExtensions.cs` (API-schets)
-
-```csharp
-public static class ScdmsAspireExtensions
-{
-    public static IResourceBuilder<SCDMSResource> AddSCDMS(
-        this IDistributedApplicationBuilder builder,
-        string name,
-        IResourceBuilder<SharpCoreDbServerResource>? sharpCoreDb = null)
-    {
-        var scdms = builder.AddResource(new SCDMSResource(name))
-            .WithImage("ghcr.io/mpcoredeveloper/scdms")
-            .WithImageTag("latest")
-            .WithHttpEndpoint(targetPort: 8080, name: "http")
-            .WithEnvironment("SCDMS__EnableHttps", "false")
-            .WithEnvironment("SCDMS__BindAddress", "0.0.0.0")
-            .WithEnvironment("SCDMS__DataDirectory", "/app/data")
-            .WithEnvironment("SCDMS__DefaultServerAutoConnect", "true");
-
-        return sharpCoreDb is null ? scdms : scdms.WithGrpcReference(sharpCoreDb);
-    }
-
-    // Koppelt de gRPC-server aan SCDMS via SCDMS__DefaultServer* omgevingsvariabelen.
-    public static IResourceBuilder<SCDMSResource> WithGrpcReference(
-        this IResourceBuilder<SCDMSResource> scdms,
-        IResourceBuilder<SharpCoreDbServerResource> sharpCoreDb)
-    {
-        var grpcEndpoint = sharpCoreDb.GetEndpoint("grpc");
-        return scdms
-            .WithEnvironment("SCDMS__DefaultServerHost", grpcEndpoint)
-            .WithEnvironment("SCDMS__DefaultServerPort", grpcEndpoint.Property(EndpointProperty.Port))
-            .WithEnvironment("SCDMS__DefaultServerUseSsl", "true")
-            .WithEnvironment("SCDMS__DefaultServerAutoConnect", "true");
-    }
-}
-```
-
-### Voorbeeld-AppHost (nieuw project, bijv. `examples/Aspire/SCDMS.AppHost`)
-
-- `<ProjectReference Include="..\..\..\src\SCDMS.Aspire.Hosting" />` +
-  `SharpCoreDB.Aspire.Hosting` (NuGet).
-- `Program.cs` met het snippet bovenaan dit document; browser-URL via
-  `scdms.GetEndpoint("http")`.
-
-### CI
-
-- Bouw/pack `SCDMS.Aspire.Hosting` en publiceer naar NuGet.org bij releases.
+- `ci.yml` bouwt de volledige oplossing (`SCDMS.slnx`, inclusief de nieuwe projecten) op
+  ubuntu/windows/macos.
+- `nuget-publish.yml` packt `SCDMS.Aspire.Hosting` en publiceert naar NuGet.org bij elke `v*`-tag
+  (vereist het `NUGET_API_KEY`-secret).
+- De SCDMS-image (`ghcr.io/mpcoredeveloper/scdms`) wordt gepubliceerd door `docker-publish.yml`
+  bij een `v*`-tag (deel 1 van het issue).
 
 ## Opmerkingen
 
-- De Aspire-local-run kan de server als container draaien (`WithServerContainer`). Voor
-  TLS: in de Aspire-dev-omgeving is een publiek certificaat niet beschikbaar — gebruik de
-  publiek-vertrouwde-proxy-aanpak in productie (zie `samples/docker/`) en voor lokale dev
-  een dev-certificaat + `tls_insecure_skip_verify`-achtige optie in de hosting-extensie
-  (of rechtstreeks container-intern over het Aspire-netwerk met de server-`/health`-check).
+- De SharpCoreDB-servercontainer spreekt **uitsluitend TLS** en heeft een certificaat nodig
+  (`Server__Security__TlsCertificatePath`); SCDMS valideert het certificaat van het gRPC-endpoint.
+- **Productie:** beëindig TLS op een publiek vertrouwde reverse proxy (patroon in
+  `samples/docker/`), precies zoals de compose-sample.
+- **Lokale dev:** de servercontainer heeft nog steeds een (dev-)certificaat nodig; lees de
+  server-side certificaatopties in de SharpCoreDB `ASPIRE_INTEGRATION.md`. Voor een volledig
+  vertrouwde lokale run zonder extra CA-mounts blijft de proxy-topologie van `samples/docker/`
+  de aanbevolen route.

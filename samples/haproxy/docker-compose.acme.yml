@@ -1,0 +1,132 @@
+# SCDMS + SharpCoreDB Server + HAProxy (ACME variant) — fully automatic Let's Encrypt.
+#
+# Same topology as samples/haproxy/docker-compose.yml (manual certificates) but with:
+#   - the janeczku HAProxy ACME Lua plugin serving http-01 challenges on :80,
+#   - a certbot companion container that issues/renews certificates and writes the combined PEM,
+#   - the HAProxy entrypoint reloading gracefully (SIGUSR2) whenever the PEM changes.
+#
+# Usage (requires SCDMS_DOMAIN + GRPC_DOMAIN to resolve publicly to this host, :80/:443 open):
+#   cp ../.env.example .env            # or set the variables below
+#   docker compose -f docker-compose.acme.yml up -d --build
+#
+# TLS flow:
+#   Let's Encrypt ──http-01 on :80──► haproxy (Lua) ──token from /webroot──► certbot writes token
+#   certbot issues ──deploy-hook──► combines key+chain into the haproxy-certs volume
+#   haproxy entrypoint detects change ──SIGUSR2──► graceful reload (new cert live)
+#
+# State (certificates, webroot, certbot account) lives in Docker named volumes:
+# haproxy-certs, haproxy-webroot, letsencrypt (see bottom). Reset with `down -v`.
+
+services:
+  haproxy:
+    build: ./acme
+    image: scdms-haproxy-acme:local
+    restart: unless-stopped
+    # The container runs as the non-root 'haproxy' user; binding 80/443 needs this capability.
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SCDMS_DOMAIN=${SCDMS_DOMAIN:-scdms.example.com}
+      - GRPC_DOMAIN=${GRPC_DOMAIN:-scdb.example.com}
+    volumes:
+      - ./acme/haproxy.cfg.tmpl:/usr/local/etc/haproxy/haproxy.cfg.tmpl:ro
+      - ./acme/acme-http01-webroot.lua:/usr/local/etc/haproxy/acme-http01-webroot.lua:ro
+      - ./acme/entrypoint.sh:/usr/local/etc/haproxy/acme-entrypoint.sh:ro
+      # Named volumes: ownership (haproxy) is copied from the image into a fresh volume, so the
+      # non-root haproxy user can write the bootstrap PEM and the challenge webroot.
+      - haproxy-certs:/certs
+      - haproxy-webroot:/webroot
+    depends_on:
+      - scdms
+      - sharpcoredb
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'show info' | socat unix-connect:/var/lib/haproxy/admin.sock stdio >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/hooks/certbot-entrypoint.sh"]
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-}
+      - SCDMS_DOMAIN=${SCDMS_DOMAIN:-scdms.example.com}
+      - GRPC_DOMAIN=${GRPC_DOMAIN:-scdb.example.com}
+    volumes:
+      - ./acme/certbot-entrypoint.sh:/hooks/certbot-entrypoint.sh:ro
+      - ./acme/certbot-deploy.sh:/hooks/certbot-deploy.sh:ro
+      - letsencrypt:/etc/letsencrypt
+      - haproxy-webroot:/webroot
+      - haproxy-certs:/certs
+    depends_on:
+      - haproxy
+
+  scdms:
+    image: ghcr.io/mpcoredeveloper/scdms:latest
+    # Until the official image is published you can build it locally from this repository:
+    #   build:
+    #     context: ../..
+    #     dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - SCDMS__EnableHttps=false
+      - SCDMS__BindAddress=0.0.0.0
+      - SCDMS__DataDirectory=/app/data
+      - SCDMS__UseForwardedHeaders=true
+      # Default gRPC server, reached through the HAProxy proxy (public cert on the proxy):
+      - SCDMS__DefaultServerHost=${GRPC_DOMAIN:-scdb.example.com}
+      - SCDMS__DefaultServerPort=443
+      - SCDMS__DefaultServerDatabase=master
+      - SCDMS__DefaultServerUsername=${SDB_USERNAME:-anonymous}
+      - SCDMS__DefaultServerPassword=${SDB_PASSWORD:-}
+      - SCDMS__DefaultServerUseSsl=true
+      - SCDMS__DefaultServerAutoConnect=true
+      # Optional: disable the in-app update check inside a container
+      - SCDMS__UpdateCheckEnabled=false
+    volumes:
+      - scdms-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  sharpcoredb:
+    image: ghcr.io/mpcoredeveloper/sharpcoredb-server:latest
+    # The image is published on every v* tag. To build it from a local SharpCoreDB checkout,
+    # uncomment:
+    #   build:
+    #     context: /path/to/SharpCoreDB
+    #     dockerfile: src/SharpCoreDB.Server/Dockerfile
+    restart: unless-stopped
+    environment:
+      # The server uses its own (internal) dev PFX from ./server-certs. Only the HAProxy
+      # certificate (public) is managed by ACME; the proxy skips validation to this internal
+      # certificate, so it never needs to be publicly trusted.
+      - Server__Security__TlsCertificatePath=${SERVER_TLS_CERT_PATH:-/app/certs/server.pfx}
+      - Server__Security__JwtSecretKey=${SERVER_JWT_SECRET:-change-me-to-a-random-32-char-secret!}
+      - Server__SystemDatabases__Enabled=true
+    volumes:
+      - sharpcoredb-data:/app/data
+      - ./server-certs:/app/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsk", "https://localhost:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  scdms-data:
+  sharpcoredb-data:
+  # ACME state (named volumes: ownership is seeded from the haproxy image, so the non-root
+  # 'haproxy' user can write; certbot runs as root and writes the real certificate).
+  haproxy-certs:
+  haproxy-webroot:
+  letsencrypt:

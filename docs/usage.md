@@ -83,6 +83,10 @@ SCDMS validates the public certificate, so no custom CA or certificate-skip logi
 
 Mount a volume at the `SCDMS__DataDirectory` location (`/app/data` in the official image) to persist settings, saved queries/history and built-in databases across container restarts.
 
+### .NET Aspire integration
+
+A `SCDMS.Aspire.Hosting` NuGet package plus a runnable [AppHost example](../examples/Aspire/SCDMS.AppHost/) run SharpCoreDB server + SCDMS as one .NET Aspire application (all SCDMS ⇄ SharpCoreDB traffic over gRPC). Design, status and the TLS-in-development notes: [docs/aspire.md](aspire.md).
+
 ## Security posture
 
 SCDMS is configured secure-by-default:
