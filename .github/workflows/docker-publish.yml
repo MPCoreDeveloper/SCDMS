@@ -31,7 +31,7 @@ jobs:
         else
           version="${GITHUB_SHA:0:7}"
         fi
-        tags=("ghcr.io/${image_name}:v${version}")
+        tags=("ghcr.io/${image_name}:${version}")
         if [[ "${{ github.ref_type }}" == "tag" ]]; then
           tags+=("ghcr.io/${image_name}:latest")
         fi
