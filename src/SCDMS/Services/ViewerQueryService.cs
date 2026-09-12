@@ -219,7 +219,7 @@ public sealed class ViewerQueryService(
         }
     }
 
-    private static IReadOnlyDictionary<string, object?> ParseParameters(string? parametersJson)
+    private static Dictionary<string, object?> ParseParameters(string? parametersJson)
     {
         if (string.IsNullOrWhiteSpace(parametersJson))
         {

@@ -153,14 +153,14 @@ public sealed class MetadataService(IViewerConnectionService connectionService, 
     /// <param name="tableName">Table name.</param>
     /// <param name="columns">Column metadata.</param>
     /// <returns>Approximate DDL script.</returns>
-    private static string BuildApproximateDdl(string tableName, IReadOnlyList<TableColumnMetadata> columns)
+    private static string BuildApproximateDdl(string tableName, TableColumnMetadata[] columns)
     {
         var builder = new StringBuilder();
         builder.AppendLine("-- Approximate DDL reconstructed from live table metadata.");
         builder.AppendLine("-- Constraints (PRIMARY KEY / FOREIGN KEY / UNIQUE / DEFAULT) are not exposed by the engine and are omitted.");
         builder.Append("CREATE TABLE ").Append(QuoteIdentifier(tableName)).AppendLine(" (");
 
-        for (var index = 0; index < columns.Count; index++)
+        for (var index = 0; index < columns.Length; index++)
         {
             var column = columns[index];
             builder.Append("    ").Append(QuoteIdentifier(column.Name)).Append(' ').Append(column.DataType.ToUpperInvariant());
@@ -169,7 +169,7 @@ public sealed class MetadataService(IViewerConnectionService connectionService, 
                 builder.Append(" NOT NULL");
             }
 
-            builder.AppendLine(index < columns.Count - 1 ? "," : string.Empty);
+            builder.AppendLine(index < columns.Length - 1 ? "," : string.Empty);
         }
 
         builder.Append(");");
