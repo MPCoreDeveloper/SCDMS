@@ -54,7 +54,7 @@ certificate** with SCDMS running on the host for a green data-path test. Both re
   plus dynamically allocated Aspire ports.
 - Container images:
 
-  - `ghcr.io/mpcoredeveloper/sharpcoredb-server` — **published** (tag `2.0.0.2` / `latest`).
+  - `ghcr.io/mpcoredeveloper/sharpcoredb-server` — **published** (tag `2.0.0.3` / `latest`).
   - `ghcr.io/mpcoredeveloper/scdms` — built on `v*` tags. **Not published yet** → build locally:
 
     ```bash
@@ -211,7 +211,7 @@ cd <repo-root>/SCDMS
 docker build -t ghcr.io/mpcoredeveloper/scdms:latest .
 
 # 2) Pull the published server image
-docker pull ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.2
+docker pull ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.3
 
 # 3) Development certificate for the server container
 cd examples/Aspire/SCDMS.AppHost
@@ -275,7 +275,7 @@ docker run -d --name scdb-test \
   -e Server__Security__TlsCertificatePath=/certs/server.pfx \
   -e Server__SystemDatabases__Enabled=true \
   -v "$(pwd)/server-certs:/certs:ro" \
-  ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.2
+  ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.3
 
 # 2) Health check the server
 curl -fsk https://localhost:8443/api/v1/health

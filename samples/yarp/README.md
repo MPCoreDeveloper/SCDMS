@@ -32,7 +32,7 @@ Caddy sample when you want zero-maintenance automatic TLS.
    ```bash
    cd <repo-root>/SCDMS
    docker build -t ghcr.io/mpcoredeveloper/scdms:latest .   # until the official image is published
-   docker pull ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.2
+   docker pull ghcr.io/mpcoredeveloper/sharpcoredb-server:2.0.0.3
    ```
 
 2. Configure and create the TLS certificate (local test → use `localhost` in `.env`):

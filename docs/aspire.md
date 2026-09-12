@@ -29,7 +29,7 @@ Al het SCDMS ⇄ SharpCoreDB-dataverkeer loopt over **gRPC**. Browser-URL in de 
 
 1. ✅ **Server-image gepubliceerd** → `ghcr.io/mpcoredeveloper/sharpcoredb-server`
    (`linux/amd64` + `linux/arm64`, getagd op elke `v*`-tag).
-2. ✅ **`SharpCoreDB.Aspire.Hosting`-pakket gepubliceerd** → versie `2.0.0.2`
+2. ✅ **`SharpCoreDB.Aspire.Hosting`-pakket gepubliceerd** → versie `2.0.0.3`
    (dependency: `Aspire.Hosting` 13.5.3, net10.0).
 
 Publieke API die dit repo gebruikt:

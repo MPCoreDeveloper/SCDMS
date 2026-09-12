@@ -41,7 +41,7 @@ Optional overrides:
 SCDMS_SERVER_JWT_SECRET="some-random-32-char-secret!" dotnet run
 
 # pin a specific SharpCoreDB server image tag instead of "latest"
-SCDB_IMAGE_TAG="2.0.0.2" dotnet run
+SCDB_IMAGE_TAG="2.0.0.3" dotnet run
 ```
 
 The Aspire dashboard opens automatically; the resources (`db`, `admin`) and their endpoints are
