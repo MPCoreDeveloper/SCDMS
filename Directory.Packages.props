@@ -18,6 +18,6 @@
   <ItemGroup>
     <!-- .NET Aspire hosting (src/SCDMS.Aspire.Hosting + examples/Aspire). Version must match the
          Aspire.Hosting dependency of SharpCoreDB.Aspire.Hosting (13.5.3). -->
-    <PackageVersion Include="Aspire.Hosting" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting" Version="13.5.4" />
   </ItemGroup>
 </Project>
