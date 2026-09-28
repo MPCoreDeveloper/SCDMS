@@ -11,7 +11,7 @@
     <PackageVersion Include="SharpCoreDB.Client" Version="$(SharpCoreDBVersion)" />
     <!-- Aspire hosting integration for the SharpCoreDB server container (same release train). -->
     <PackageVersion Include="SharpCoreDB.Aspire.Hosting" Version="$(SharpCoreDBVersion)" />
-    <PackageVersion Include="SafeWebCore" Version="1.7.0" />
+    <PackageVersion Include="SafeWebCore" Version="1.8.0" />
     <PackageVersion Include="SharpDispatch" Version="1.0.2" />
   </ItemGroup>
 
