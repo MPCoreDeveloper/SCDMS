@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <!-- Inline version: central package management is disabled for this project. -->
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.5.3" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.6.0" />
     <!-- IsAspireProjectResource=false: the hosting package is a plain compile-time library
          reference, not an Aspire project resource (only executables are project resources). -->
     <ProjectReference Include="..\..\..\src\SCDMS.Aspire.Hosting\SCDMS.Aspire.Hosting.csproj"
